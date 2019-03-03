@@ -7,10 +7,10 @@ import re
 
 import numpy as np
 from PIL import Image
-from PIL.JpegImagePlugin import JpegImageFile
 from ml_utils import data_utils
 
-from .datamanager import DataManager
+from . import DataManager
+from . import FrameInstance
 
 __all__ = ['FrameInstance', 'VIDDataManager']
 
@@ -20,13 +20,6 @@ class _RawFrameInstance(NamedTuple):
     impath: Path
     class_ids: Tuple[str]
     bboxes: Tuple[Tuple[float]]
-
-
-class FrameInstance(NamedTuple):
-    """human readable frame instance"""
-    im: JpegImageFile
-    classes: np.ndarray
-    bboxes: np.ndarray
 
 
 class VIDDataManager(DataManager):
