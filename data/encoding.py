@@ -64,34 +64,36 @@ class FRCNNEncoder:
             c_star: (|A|,) anchorwise assigned class values.
             b_star: (|A|, 4) anchorwise offset from assigned bounding box.
         """
-        classes = frame_instance.classes.copy()
-        bboxes = frame_instance.bboxes.copy()
+        ### start with label conversion
+        # classes: (|O|,), bboxes: (|O|, 4)
+        classes = np.array([ob.class_id for ob in frame_instance.object_labels])
+        bboxes = np.array([ob.bbox for ob in frame_instance.object_labels])
 
-        ious = compute_ious(self._anchors, bboxes)
-        anchwise_best_gt_ind = ious.argmax(1)
-        anchwise_best_iou = ious.max(1)
+        ious = compute_ious(self._anchors, bboxes)  # (|A|, |B|)
+        anchwise_best_gt_ind = ious.argmax(1)  # (|A|,)
+        anchwise_best_iou = ious.max(1)  # (|A|,)
 
         ### loss_weights encoding
         loss_weights = np.logical_and(
             np.abs(anchwise_best_iou - self._iou_thresh) > self._iou_margin,
             np.logical_not(self._crosses_boundary)
-        )
+        )  # (|A|,)
 
         ### c_star encoding
-        c_star = classes[anchwise_best_gt_ind]
-        is_best_anchor = np.zeros(len(self._anchors))
+        c_star = classes[anchwise_best_gt_ind]  # (|A|,)
+        is_best_anchor = np.zeros(len(self._anchors))  # (|A|,)
         is_best_anchor[ious.argmax(0)] = 1
         neg_mask = np.logical_and(
             anchwise_best_iou < self._iou_thresh, np.logical_not(is_best_anchor)
-        )
+        )  # (|A|,)
         c_star[neg_mask] = 0
 
         ### b_star encoding
-        b_ij, b_hw = np.hsplit(bboxes[anchwise_best_gt_ind, :], 2)
-        a_ij, a_hw = np.hsplit(self._anchors, 2)
-        t_ij = (b_ij - a_ij) / a_hw
-        t_hw = np.log(b_hw / a_hw)
-        b_star = np.concatenate([t_ij, t_hw], axis=1)
+        b_ij, b_hw = np.hsplit(bboxes[anchwise_best_gt_ind, :], 2)  # 2*(|A|, 2)
+        a_ij, a_hw = np.hsplit(self._anchors, 2)  # 2*(|A|, 2)
+        t_ij = (b_ij - a_ij) / a_hw   # (|A|, 2)
+        t_hw = np.log(b_hw / a_hw)  # (|A|, 2)
+        b_star = np.concatenate([t_ij, t_hw], axis=1)  # (|A|, 4)
 
         return loss_weights, c_star, b_star
 

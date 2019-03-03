@@ -1,13 +1,19 @@
 """instance types are defined here"""
 
-from typing import NamedTuple
+from typing import Tuple, NamedTuple
 
-import numpy as np
 from PIL.JpegImagePlugin import JpegImageFile
+
+
+class ObjectLabel(NamedTuple):
+    """object label"""
+    track_id: int
+    class_id: int
+    class_name: str
+    bbox: Tuple[float]
 
 
 class FrameInstance(NamedTuple):
     """human readable frame instance"""
     im: JpegImageFile
-    classes: np.ndarray
-    bboxes: np.ndarray
+    object_labels: Tuple[ObjectLabel, ...]
