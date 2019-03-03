@@ -30,20 +30,35 @@ class FrameInstance(NamedTuple):
 
 class VIDDataManager:
     """handles data loading for Imagenet VID Dataset.
+
     Args:
         data_root: dataset root directory.
         seq_len (int): unlinked sequence length.
     """
-    def __init__(
-            self,
-            data_root: PathLike,
-            seq_len: int
-    ):
-        self._index_mappings = self._preload_instances(data_root, seq_len)
+    def __init__(self, data_root: PathLike, seq_len: int = 2):
         self._cls_mappings = self._load_cls_mappings(data_root)
+        self._index_mappings = self._preload_instances(data_root, seq_len)
 
+    @staticmethod
+    def _load_cls_mappings(data_root: PathLike) -> Dict[str, int]:
+        """load mappings as dictionary.
+
+        Args:
+            data_root: dataset root directory.
+
+        Returns:
+            cls_mappings: vid_id -> int_id.
+        """
+        cls_mappings = dict()
+        with open(Path(data_root, 'devkit', 'data', 'map_vid.txt')) as mapfile:
+            for line in mapfile:
+                cls_id, cls_int, _ = line.split()
+                cls_mappings[cls_id] = int(cls_int)
+
+        return cls_mappings
+
+    @staticmethod
     def _preload_instances(
-            self,
             data_root: PathLike,
             seq_len: int
     ) -> Tuple[Tuple[_RawFrameInstance, ...], ...]:
@@ -58,7 +73,7 @@ class VIDDataManager:
         index_mappings = list()
         snippet_dirs = set(
             p.parent for p in Path(data_root, 'Data', 'VID').rglob('*.JPEG')
-        )
+        )  # snippet dirs are at different levels depending on train or val
         for snippet_dir in snippet_dirs:
             for frame0_num in range(
                     sum(1 for _ in snippet_dir.glob('*.JPEG')) - seq_len + 1
@@ -81,23 +96,6 @@ class VIDDataManager:
 
         return tuple(index_mappings)
 
-    def _load_cls_mappings(self, data_root: PathLike) -> Dict[str, int]:
-        """load mappings as dictionary.
-
-        Args:
-            data_root: dataset root directory.
-
-        Returns:
-            cls_mappings: vid_id -> int_id.
-        """
-        cls_mappings = dict()
-        with open(Path(data_root, 'devkit', 'data', 'map_vid.txt')) as mapfile:
-            for line in mapfile:
-                cls_id, cls_int, _ = line.split()
-                cls_mappings[cls_id] = int(cls_int)
-
-        return cls_mappings
-
     def __getitem__(self, i: int) -> Tuple[FrameInstance, ...]:
         """load instance specified by i.
 
@@ -109,13 +107,13 @@ class VIDDataManager:
         """
         frame_instances = tuple([
             FrameInstance(
-                im=Image.open(rf_instance.impath),
+                im=Image.open(raw_instance.impath),  # load image
                 classes=np.array([
-                    self._cls_mappings[c] for c in rf_instance.class_ids
-                ]),
-                bboxes=np.array(rf_instance.bboxes)
+                    self._cls_mappings[c] for c in raw_instance.class_ids
+                ]),  # str -> int and convert to array
+                bboxes=np.array(raw_instance.bboxes)  # convert to array
             )
-            for rf_instance in self._index_mappings[i]
+            for raw_instance in self._index_mappings[i]
         ])
 
         return frame_instances
