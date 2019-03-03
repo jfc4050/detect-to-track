@@ -10,6 +10,7 @@ from PIL import Image
 from PIL.JpegImagePlugin import JpegImageFile
 from ml_utils import data_utils
 
+from .datamanager import DataManager
 
 __all__ = ['FrameInstance', 'VIDDataManager']
 
@@ -28,7 +29,7 @@ class FrameInstance(NamedTuple):
     bboxes: np.ndarray
 
 
-class VIDDataManager:
+class VIDDataManager(DataManager):
     """handles data loading for Imagenet VID Dataset.
 
     Args:
