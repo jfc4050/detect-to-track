@@ -126,9 +126,6 @@ class SRResNetBase(ResNet):
         super().train(False)
 
 
-<<<<<<< Updated upstream
-def resnet(arch: int, state_dict: Optional[dict] = None, **kwargs) -> nn.Module:
-=======
 class SRResNetHead(nn.Module):
     """ResNet head for image classification from SRResNetBase feature maps.
     for pre-training SRResNetBase
@@ -150,7 +147,6 @@ class SRResNetHead(nn.Module):
 
 
 def resnet(arch: int, pretrained: bool = True, **kwargs) -> nn.Module:
->>>>>>> Stashed changes
     """constructs a resnet<arch> model.
 
     Args:
