@@ -1,3 +1,4 @@
 .mypy*
 .vscode/
 *.pyc
+*.pytest*/
