@@ -45,3 +45,26 @@ class FocalLoss(nn.Module):
         fl = fl.mean(-1)  # (|B|, |A|) mean loss across all classes
 
         return fl
+
+
+class BBoxLoss(nn.Module):
+    """weighted L1 loss applied only at positive anchors"""
+    def __init__(self):
+        super().__init__()
+        self.l1_module = nn.L1Loss(reduction='none')
+
+    def forward(self, b_hat: Tensor, b_star: Tensor, c_star: Tensor) -> Tensor:
+        """compute bounding box loss.
+
+        Args:
+            b_hat: (|B|, |A|, 4) predicted anchor offsets.
+            b_star: (|B|, |A|, 4) ground-truth anchor offsets.
+            c_star: (|B|, |A|) true class values.
+
+        Returns:
+            bbox_loss: (|B|, |A|) anchorwise bounding box loss.
+        """
+        l1 = self.l1_module(b_hat, b_star).mean(-1)  # (|B|, |A|) anchorwise avg
+        l1[c_star == 0] = 0  # no penalties for negative anchors.
+
+        return l1

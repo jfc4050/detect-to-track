@@ -1,2 +1,2 @@
 """loss functions."""
-from .loss import make_param, FocalLoss
+from .loss import make_param, FocalLoss, BBoxLoss
