@@ -68,3 +68,52 @@ class BBoxLoss(nn.Module):
         l1[c_star == 0] = 0  # no penalties for negative anchors.
 
         return l1
+
+
+class DetectionLoss(nn.Module):
+    """generic loss function for object detection.
+
+    Args:
+        alpha: see FocalLoss.
+        gamma: see FocalLoss.
+    """
+    def __init__(
+            self,
+            cls_loss_module: nn.Module,
+            reg_loss_module: nn.Module
+    ) -> None:
+        super().__init__()
+        self.cls_loss_module = cls_loss_module
+        self.reg_loss_module = reg_loss_module
+
+    def forward(
+            self,
+            weights: Tensor,
+            o_hat: Tensor,
+            o_star: Tensor,
+            b_hat: Tensor,
+            b_star: Tensor
+    ) -> Tensor:
+        """compute classification and regression loss.
+
+        Args:
+            weights (FloatTensor): (|B|, |A|) anchorwise loss weights.
+            c_hat (FloatTensor): (|B|, |A|, 2) class predictions
+                (object or not object).
+            c_star (FloatTensor): (|B|, |A|, 2) ground-truth classes.
+            b_hat (FloatTensor): (|B|, |A|, 4) predicted bounding box offsets
+                from anchors.
+            b_star (FloatTensor): (|B|, |A|, 4) ground truth bounding box
+                offsets from anchors.
+
+        Returns:
+            cls_loss: (scalar) classification loss.
+            FloatTensor: (scalar) regression loss.
+        """
+        cls_loss = self.cls_loss_module(o_hat, o_star)
+        reg_loss = self.reg_loss_module(b_hat, b_star, o_star)
+
+        cls_loss = (weights * cls_loss).sum()
+        reg_loss = (weights * reg_loss).sum()
+
+        return cls_loss, reg_loss
