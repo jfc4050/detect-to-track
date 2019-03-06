@@ -3,21 +3,13 @@
 from pathlib import Path
 import re
 from os import PathLike
-from typing import Tuple, NamedTuple, Dict
+from typing import Tuple, Dict
 
 from PIL import Image
 from ml_utils.data import parse_pascal_xmlfile, PascalObjectLabel
 
 from . import DataManager
-from . import ObjectLabel, FrameInstance
-
-__all__ = ['VIDDataManager']
-
-
-class _RawFrameInstance(NamedTuple):
-    """unprocessed, immutable frame instance for storage"""
-    impath: Path
-    object_labels: Tuple[ObjectLabel, ...]
+from . import ObjectLabel, RawImageInstance, ImageInstance
 
 
 class VIDDataManager(DataManager):
@@ -58,7 +50,7 @@ class VIDDataManager(DataManager):
             self,
             data_root: PathLike,
             seq_len: int
-    ) -> Tuple[Tuple[_RawFrameInstance, ...], ...]:
+    ) -> Tuple[Tuple[RawImageInstance, ...], ...]:
         """partially preload and store instances. Object labels are converted
         from Pascal objects to common objects
         (see self._translate_pascal_object).
@@ -85,7 +77,7 @@ class VIDDataManager(DataManager):
                         '/Data/', '/Annotations/',
                         str(impath.with_suffix('.xml'))
                     ))
-                    raw_frame_seq.append(_RawFrameInstance(
+                    raw_frame_seq.append(RawImageInstance(
                         impath=impath,
                         object_labels=[
                             self._translate_pascal_object(pascal_object)
@@ -117,7 +109,7 @@ class VIDDataManager(DataManager):
             bbox=pascal_object.bbox
         )
 
-    def __getitem__(self, i: int) -> Tuple[FrameInstance, ...]:
+    def __getitem__(self, i: int) -> Tuple[ImageInstance, ...]:
         """get impath and labels for instance specified by i, then return
         loaded image and labels.
 
@@ -128,7 +120,7 @@ class VIDDataManager(DataManager):
             frame_instances: human-readable sequence of frame instances.
         """
         frame_instances = tuple([
-            FrameInstance(
+            ImageInstance(
                 im=Image.open(raw_instance.impath),  # load image
                 object_labels=raw_instance.object_labels
             )

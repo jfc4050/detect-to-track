@@ -5,7 +5,7 @@ from typing import Tuple
 import numpy as np
 from ml_utils.bbox_utils import ijhw_to_ijij, compute_ious
 
-from . import FrameInstance
+from . import ImageInstance
 
 
 class FRCNNEncoder:
@@ -39,7 +39,7 @@ class FRCNNEncoder:
 
     def __call__(
             self,
-            frame_instance: FrameInstance
+            frame_instance: ImageInstance
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """encode human-readable ground-truth frame instances into
         network-readable frame instances, according to Faster RCNN conventions.

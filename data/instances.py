@@ -1,5 +1,6 @@
 """instance types are defined here"""
 
+from pathlib import Path
 from typing import Tuple, NamedTuple
 
 from PIL.JpegImagePlugin import JpegImageFile
@@ -13,7 +14,13 @@ class ObjectLabel(NamedTuple):
     bbox: Tuple[float]
 
 
-class FrameInstance(NamedTuple):
+class RawImageInstance(NamedTuple):
+    """unprocessed, immutable image instance for storage"""
+    impath: Path
+    object_labels: Tuple[ObjectLabel, ...]
+
+
+class ImageInstance(NamedTuple):
     """human readable frame instance"""
     im: JpegImageFile
     object_labels: Tuple[ObjectLabel, ...]
