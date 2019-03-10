@@ -6,7 +6,7 @@ from os import PathLike
 from typing import Tuple, Dict
 
 from PIL import Image
-from ml_utils.data import parse_pascal_xmlfile, PascalObjectLabel
+from ml_utils.data.pascal import parse_pascal_xmlfile, PascalObjectLabel
 
 from . import DataManager
 from . import ObjectLabel, RawImageInstance, ImageInstance
