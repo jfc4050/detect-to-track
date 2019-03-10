@@ -57,12 +57,6 @@ class FRCNNEncoder(LabelEncoder):
             ii) a is the anchor with the highest IoU
                 for some ground-truth box b
 
-        equations for encoding anchor offsets:
-            ti = (bi - ai) / ah
-            tj = (bj - aj) / aw
-            th = log(bh / ah)
-            tw = log(bw / aw)
-
         Args:
             labels: sequence of object labels.
 
@@ -97,16 +91,39 @@ class FRCNNEncoder(LabelEncoder):
         c_star[neg_mask] = 0
 
         ### b_star encoding
-        b_ij, b_hw = np.hsplit(bboxes[anchwise_best_gt_ind, :], 2)  # 2*(|A|, 2)
-        a_ij, a_hw = np.hsplit(self._anchors, 2)  # 2*(|A|, 2)
-        t_ij = (b_ij - a_ij) / a_hw   # (|A|, 2)
-        t_hw = np.log(b_hw / a_hw)  # (|A|, 2)
-        b_star = np.concatenate([t_ij, t_hw], axis=1)  # (|A|, 4)
+        b_star = frcnn_box_encode(
+            bboxes[anchwise_best_gt_ind, :], self._anchors
+        )  # (|A|, 4)
 
         return loss_weights, c_star, b_star
 
 
-def frcnn_decode(offsets: np.ndarray, anchors: np.ndarray) -> np.ndarray:
+def frcnn_box_encode(boxes: np.ndarray, anchors: np.ndarray) -> np.ndarray:
+    """given boxes and anchors, return bounding box offsets from anchors.
+    equations for encoding anchor offsets:
+        ti = (bi - ai) / ah
+        tj = (bj - aj) / aw
+        th = log(bh / ah)
+        tw = log(bw / aw)
+
+    Args:
+        boxes: (|A|, 4) anchorwise closest ground truth bounding box.
+        anchors: (|A|, 4) bounding box priors. can be deterministically
+            precomputed anchors or predicted rois.
+
+    Returns:
+        offsets: (|A|, 4) anchor offsets from closest bounding box.
+    """
+    b_ij, b_hw = np.hsplit(boxes, 2)  # 2*(|A|, 2)
+    a_ij, a_hw = np.hsplit(anchors, 2)  # 2*(|A|, 2)
+    t_ij = (b_ij - a_ij) / a_hw   # (|A|, 2)
+    t_hw = np.log(b_hw / a_hw)  # (|A|, 2)
+    offsets = np.concatenate([t_ij, t_hw], axis=1)  # (|A|, 4)
+
+    return offsets
+
+
+def frcnn_box_decode(offsets: np.ndarray, anchors: np.ndarray) -> np.ndarray:
     """given anchors and anchor offsets, return bounding box coordinates
     equations for decoding anchor offsets:
         bi = ti * ah + ai
