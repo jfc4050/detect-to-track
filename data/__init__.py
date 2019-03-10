@@ -4,3 +4,4 @@ from .datamanager import DataManager, ImageNetDataManager
 from .det_datamanager import DETDataManager
 from .vid_datamanager import VIDDataManager
 from .encoding import LabelEncoder, FRCNNEncoder
+from .image_dataset import ImageDataset
