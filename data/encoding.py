@@ -106,6 +106,33 @@ class FRCNNEncoder(LabelEncoder):
         return loss_weights, c_star, b_star
 
 
+def frcnn_decode(offsets: np.ndarray, anchors: np.ndarray) -> np.ndarray:
+    """given anchors and anchor offsets, return bounding box coordinates
+    equations for decoding anchor offsets:
+        bi = ti * ah + ai
+        bj = tj * aw + aj
+        th = exp(th) * ah
+        tw = exp(tw) * aw
+
+    Args:
+        offsets: (|A|, 4) predicted offsets from anchors.
+        anchors: (|A|, 4) bounding box priors. can be deterministically
+            precomputed anchors or predicted rois.
+
+    Returns:
+        boxes: (|A|, 4) bounding box coordinates.
+    """
+    t_ij, t_hw = np.hsplit(offsets, 2)  # 2*(|A|, 2)
+    a_ij, a_hw = np.hsplit(anchors, 2)  # 2*(|A|, 2)
+
+    b_ij = t_ij * a_hw + a_ij  # (|A|, 2)
+    b_hw = np.exp(t_hw) * a_hw  # (|A|, 2)
+
+    boxes = np.concatenate([b_ij, b_hw], axis=1)  # (|A|, 4)
+
+    return boxes
+
+
 class TrackEncoder:
     def __init__(self):
         raise NotImplementedError
