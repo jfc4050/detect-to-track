@@ -1,5 +1,6 @@
 """encoder objects for converting human-readable labels to network targets"""
 
+import abc
 from typing import Tuple, Sequence
 
 import numpy as np
@@ -8,7 +9,14 @@ from ml_utils.bbox_utils import ijhw_to_ijij, compute_ious
 from . import ObjectLabel
 
 
-class FRCNNEncoder:
+class LabelEncoder(abc.ABC):
+    """handles encoding of ground-truth labels."""
+    @abc.abstractmethod
+    def __call__(self, labels):
+        raise NotImplementedError
+
+
+class FRCNNEncoder(LabelEncoder):
     """anchorwise class and bounding-box offset encoding
     according to https://arxiv.org/abs/1506.01497
 
