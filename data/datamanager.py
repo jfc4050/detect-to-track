@@ -10,8 +10,20 @@ from ml_utils.data.pascal import PascalObjectLabel
 from . import ObjectLabel
 
 
-class ImageNetDataManager(abc.ABC):
-    """handles dataloading"""
+class DataManager(abc.ABC):
+    """general data manaager object. handles data i/o and conversion to
+    common format."""
+    @abc.abstractmethod
+    def __getitem__(self, i):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def __len__(self):
+        raise NotImplementedError
+
+
+class ImageNetDataManager(DataManager):
+    """handles dataloading form imagenet datasets."""
     allowed_tasks = {'det', 'vid'}
 
     def __init__(self, data_root: PathLike, task: str) -> None:
