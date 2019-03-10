@@ -57,7 +57,7 @@ class VIDDataManager(ImageNetDataManager):
                     ))
                     raw_frame_seq.append(RawImageInstance(
                         impath=impath,
-                        object_labels=[
+                        labels=[
                             self._translate_pascal_object(pascal_object)
                             for pascal_object in parse_pascal_xmlfile(labelpath)
                         ]
@@ -80,7 +80,7 @@ class VIDDataManager(ImageNetDataManager):
         frame_instances = tuple([
             ImageInstance(
                 im=Image.open(raw_instance.impath),  # load image
-                object_labels=raw_instance.object_labels
+                labels=raw_instance.object_labels
             )
             for raw_instance in self._index_mappings[i]
         ])

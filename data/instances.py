@@ -17,10 +17,10 @@ class ObjectLabel(NamedTuple):
 class RawImageInstance(NamedTuple):
     """unprocessed, immutable image instance for storage"""
     impath: Path
-    object_labels: Tuple[ObjectLabel, ...]
+    labels: Tuple[ObjectLabel, ...]
 
 
 class ImageInstance(NamedTuple):
     """human readable frame instance"""
     im: JpegImageFile
-    object_labels: Tuple[ObjectLabel, ...]
+    labels: Tuple[ObjectLabel, ...]
