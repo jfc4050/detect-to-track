@@ -1,11 +1,11 @@
 """encoder objects for converting human-readable labels to network targets"""
 
-from typing import Tuple
+from typing import Tuple, Sequence
 
 import numpy as np
 from ml_utils.bbox_utils import ijhw_to_ijij, compute_ious
 
-from . import ImageInstance
+from . import ObjectLabel
 
 
 class FRCNNEncoder:
@@ -39,7 +39,7 @@ class FRCNNEncoder:
 
     def __call__(
             self,
-            frame_instance: ImageInstance
+            labels: Sequence[ObjectLabel]
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """encode human-readable ground-truth frame instances into
         network-readable frame instances, according to Faster RCNN conventions.
@@ -56,7 +56,7 @@ class FRCNNEncoder:
             tw = log(bw / aw)
 
         Args:
-            frame_instance: frame (not used), gt-classes, and gt-bboxes.
+            labels: sequence of object labels.
 
         Returns:
             loss_weights: (|A|,) anchorwise weight assigned to losses for
@@ -66,8 +66,8 @@ class FRCNNEncoder:
         """
         ### start with label conversion
         # classes: (|O|,), bboxes: (|O|, 4)
-        classes = np.array([ob.class_id for ob in frame_instance.object_labels])
-        bboxes = np.array([ob.bbox for ob in frame_instance.object_labels])
+        classes = np.array([label.class_id for label in labels])
+        bboxes = np.array([label.bbox for label in labels])
 
         ious = compute_ious(self._anchors, bboxes)  # (|A|, |B|)
         anchwise_best_gt_ind = ious.argmax(1)  # (|A|,)
