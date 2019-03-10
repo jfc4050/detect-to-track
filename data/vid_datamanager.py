@@ -3,16 +3,16 @@
 from pathlib import Path
 import re
 from os import PathLike
-from typing import Tuple, Dict
+from typing import Tuple
 
 from PIL import Image
-from ml_utils.data.pascal import parse_pascal_xmlfile, PascalObjectLabel
+from ml_utils.data.pascal import parse_pascal_xmlfile
 
-from . import DataManager
-from . import ObjectLabel, RawImageInstance, ImageInstance
+from . import ImageNetDataManager
+from . import RawImageInstance, ImageInstance
 
 
-class VIDDataManager(DataManager):
+class VIDDataManager(ImageNetDataManager):
     """handles data loading for Imagenet VID Dataset and conversion to common
     format.
 
@@ -21,30 +21,8 @@ class VIDDataManager(DataManager):
         seq_len: unlinked sequence length.
     """
     def __init__(self, data_root: PathLike, seq_len: int = 2):
-        self._id_to_int, self._id_to_name = self._load_cls_mappings(data_root)
+        super().__init__(data_root, 'vid')
         self._index_mappings = self._preload_instances(data_root, seq_len)
-
-    @staticmethod
-    def _load_cls_mappings(
-            data_root: PathLike
-    ) -> Tuple[Dict[str, int], Dict[str, str]]:
-        """load mappings as dictionaries.
-
-        Args:
-            data_root: dataset root directory.
-
-        Returns:
-            id_to_int: vid_id -> int_id.
-            id_to_name: vid_id -> class name.
-        """
-        id_to_int, id_to_name = dict(), dict()
-        with open(Path(data_root, 'devkit', 'data', 'map_vid.txt')) as mapfile:
-            for line in mapfile:
-                cls_id, cls_int, cls_name = line.split()
-                id_to_int[cls_id] = int(cls_int)
-                id_to_name[cls_id] = cls_name
-
-        return id_to_int, id_to_name
 
     def _preload_instances(
             self,
@@ -89,32 +67,12 @@ class VIDDataManager(DataManager):
 
         return tuple(index_mappings)
 
-    def _translate_pascal_object(
-            self,
-            pascal_object: PascalObjectLabel
-    ) -> ObjectLabel:
-        """pascal xmlfile parser doesnt have access to mappings from pascal_id
-        to integer and class name, so we handle the mapping here.
-
-        Args:
-            pascal_object: pascal object label to be translated.
-
-        Returns:
-            object_label: translated object label.
-        """
-        return ObjectLabel(
-            class_id=self._id_to_int[pascal_object.class_id],
-            class_name=self._id_to_name[pascal_object.class_id],
-            bbox=pascal_object.bbox,
-            track_id=pascal_object.track_id
-        )
-
     def __getitem__(self, i: int) -> Tuple[ImageInstance, ...]:
         """get impath and labels for instance specified by i, then return
         loaded image and labels.
 
         Args:
-            i (int): index of requested instance.
+            i: index of requested instance.
 
         Returns:
             frame_instances: human-readable sequence of frame instances.
