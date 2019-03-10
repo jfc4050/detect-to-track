@@ -1,17 +1,17 @@
 """instance types are defined here"""
 
 from pathlib import Path
-from typing import Tuple, NamedTuple
+from typing import Tuple, NamedTuple, Optional
 
 from PIL.JpegImagePlugin import JpegImageFile
 
 
 class ObjectLabel(NamedTuple):
     """object label"""
-    track_id: int
     class_id: int
     class_name: str
-    bbox: Tuple[float]
+    bbox: Tuple[float, float, float, float]
+    track_id: Optional[int] = None
 
 
 class RawImageInstance(NamedTuple):

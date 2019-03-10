@@ -103,10 +103,10 @@ class VIDDataManager(DataManager):
             object_label: translated object label.
         """
         return ObjectLabel(
-            track_id=pascal_object.track_id,
             class_id=self._id_to_int[pascal_object.class_id],
             class_name=self._id_to_name[pascal_object.class_id],
-            bbox=pascal_object.bbox
+            bbox=pascal_object.bbox,
+            track_id=pascal_object.track_id
         )
 
     def __getitem__(self, i: int) -> Tuple[ImageInstance, ...]:
