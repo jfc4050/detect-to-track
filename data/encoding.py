@@ -69,7 +69,7 @@ class FRCNNEncoder(LabelEncoder):
         ### start with label conversion
         # classes: (|O|,), bboxes: (|O|, 4)
         classes = np.array([label.class_id for label in labels])
-        bboxes = np.array([label.bbox for label in labels])
+        bboxes = np.array([label.box for label in labels])
 
         ious = compute_ious(self._anchors, bboxes)  # (|A|, |B|)
         anchwise_best_gt_ind = ious.argmax(1)  # (|A|,)

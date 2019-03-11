@@ -10,7 +10,7 @@ class ObjectLabel(NamedTuple):
     """object label"""
     class_id: int
     class_name: str
-    bbox: Tuple[float, float, float, float]
+    box: Tuple[float, float, float, float]
     track_id: Optional[int] = None
 
 

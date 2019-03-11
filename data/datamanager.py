@@ -72,7 +72,7 @@ class ImageNetDataManager(DataManager):
         return ObjectLabel(
             class_id=self._id_to_int[pascal_object.class_id],
             class_name=self._id_to_name[pascal_object.class_id],
-            bbox=pascal_object.bbox,
+            box=pascal_object.bbox,
             track_id=pascal_object.track_id
         )
 
