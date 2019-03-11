@@ -7,11 +7,12 @@ from torch import Tensor
 from torch.utils.data import Dataset
 from torchvision.transforms import Compose, Resize, ToTensor
 
-from . import DataManager, LabelEncoder
+from . import DataManager
+from .encoding import FRCNNLabelEncoder
 
 
 class ImageDataset(Dataset):
-    """dataset for training object detectors on images.
+    """dataset for training single stage object detectors and RPNs on images.
 
     Args:
         data_manager: data manager
@@ -22,7 +23,7 @@ class ImageDataset(Dataset):
     def __init__(
             self,
             data_manager: DataManager,
-            encoder: LabelEncoder,
+            encoder: FRCNNLabelEncoder,
             net_input_size: int
     ) -> None:
         self.data_manager = data_manager
