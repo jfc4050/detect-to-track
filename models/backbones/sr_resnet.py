@@ -1,14 +1,22 @@
 """stride-reduced resnet with dilated convolutions"""
 
 import re
-from typing import Optional, Sequence
+from typing import NamedTuple, Optional, Sequence
 
 from torch import nn, Tensor
 from torch.utils import model_zoo
 from torchvision.models.resnet import model_urls, Bottleneck, ResNet
 
 
-__all__ = ['SRResNetBase', 'resnet']
+__all__ = ['resnet', 'ResNetFeatures']
+
+
+class ResNetFeatures(NamedTuple):
+    """resnet intermediate representations corresponding to convolutional
+    blocks 3, 4, and 5"""
+    c3: Tensor
+    c4: Tensor
+    c5: Tensor
 
 
 class _DilatedBottleneck(Bottleneck):
@@ -34,7 +42,7 @@ class _DilatedBottleneck(Bottleneck):
         )
 
 
-class SRResNetBase(ResNet):
+class _SRResNetBase(ResNet):
     """stride-reduced ResNet base with final convolutional layers replaced
     with dilated convolutions"""
     inplanes: int = 64
@@ -82,19 +90,19 @@ class SRResNetBase(ResNet):
         self.eval()
         self.train()
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor) -> ResNetFeatures:
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
-        x = self.maxpool(x)
+        c0 = self.maxpool(x)
 
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-        x = self.layer5(x)  # channel reduce
+        c1 = self.layer1(c0)
+        c2 = self.layer2(c1)
+        c3 = self.layer3(c2)
+        c4 = self.layer4(c3)
+        c5 = self.layer5(c4)  # channel reduce
 
-        return x
+        return ResNetFeatures(c3=c3, c4=c4, c5=c5)
 
     def _should_freeze_layer(self, layer_name: str) -> bool:
         """given a layer name, return whether or not it should be frozen."""
@@ -126,26 +134,6 @@ class SRResNetBase(ResNet):
         super().train(False)
 
 
-class SRResNetHead(nn.Module):
-    """ResNet head for image classification from SRResNetBase feature maps.
-    for pre-training SRResNetBase
-
-    Args:
-        n_classes: number of target classes.
-    """
-    def __init__(self, n_classes: int = 1000):
-        super().__init__()
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * Bottleneck.expansion, n_classes)
-
-    def forward(self, x: Tensor) -> Tensor:
-        x = self.avgpool(x)
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
-
-        return x
-
-
 def resnet(depth: int, pretrained: bool = True, **kwargs) -> nn.Module:
     """constructs a resnet<depth> model.
 
@@ -161,7 +149,7 @@ def resnet(depth: int, pretrained: bool = True, **kwargs) -> nn.Module:
         101: [3, 4, 23, 3],
         152: [3, 8, 36, 3]
     }
-    model = SRResNetBase(model_menu[depth], **kwargs)
+    model = _SRResNetBase(model_menu[depth], **kwargs)
 
     if pretrained:
         model.load_state_dict(
