@@ -8,11 +8,11 @@ from torchvision.models.resnet import model_urls
 from ..models.backbones import resnet
 
 
-@pytest.mark.parametrize('arch', [50, 101, 152])
-def test_load_state_dict(arch):
+@pytest.mark.parametrize('depth', [50, 101, 152])
+def test_load_state_dict(depth):
     """make sure weights are loaded in properly"""
-    rn = resnet(arch)
-    state_dict = load_url(model_urls[f'resnet{arch}'])
+    rn = resnet(depth)
+    state_dict = load_url(model_urls[f'resnet{depth}'])
 
     rn.load_state_dict(state_dict)
     for param_name, param in rn.named_parameters():

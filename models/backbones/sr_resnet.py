@@ -146,11 +146,11 @@ class SRResNetHead(nn.Module):
         return x
 
 
-def resnet(arch: int, pretrained: bool = True, **kwargs) -> nn.Module:
-    """constructs a resnet<arch> model.
+def resnet(depth: int, pretrained: bool = True, **kwargs) -> nn.Module:
+    """constructs a resnet<depth> model.
 
     Args:
-        arch: desired resnet architecture.
+        depth: desired resnet depth.
         pretrained: load pretrained weights if true.
 
     Returns:
@@ -161,11 +161,11 @@ def resnet(arch: int, pretrained: bool = True, **kwargs) -> nn.Module:
         101: [3, 4, 23, 3],
         152: [3, 8, 36, 3]
     }
-    model = SRResNetBase(model_menu[arch], **kwargs)
+    model = SRResNetBase(model_menu[depth], **kwargs)
 
     if pretrained:
         model.load_state_dict(
-            model_zoo.load_url(model_urls[f'resnet{arch}'])
+            model_zoo.load_url(model_urls[f'resnet{depth}'])
         )
 
     return model
