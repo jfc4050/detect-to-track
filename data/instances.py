@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Tuple, NamedTuple, Optional
 
-from PIL.JpegImagePlugin import JpegImageFile
+from PIL import Image
 
 
 class ObjectLabel(NamedTuple):
@@ -15,12 +15,14 @@ class ObjectLabel(NamedTuple):
 
 
 class RawImageInstance(NamedTuple):
-    """unprocessed, immutable image instance for storage"""
+    """unprocessed, immutable image instance for storage
+    images are loaded lazily, labels are loaded eagerly"""
     impath: Path
     labels: Tuple[ObjectLabel, ...]
 
 
 class ImageInstance(NamedTuple):
-    """human readable frame instance"""
-    im: JpegImageFile
+    """human readable frame instance
+    images are loaded lazily, labels are loaded eagerly"""
+    im: Image.Image
     labels: Tuple[ObjectLabel, ...]

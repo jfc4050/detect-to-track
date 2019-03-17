@@ -7,7 +7,7 @@ from torch import Tensor
 from torch.utils.data import Dataset
 from torchvision.transforms import Compose, Resize, ToTensor
 
-from . import DataManager
+from .datamanager import DataManager
 from .encoding import FRCNNLabelEncoder
 
 
