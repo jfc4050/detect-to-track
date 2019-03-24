@@ -4,7 +4,7 @@ import torch
 from torch import nn, Tensor
 import numpy as np
 
-from .pooling import PSROIPool
+from . import PSROIPool
 
 
 class _RFCNHead(nn.Module):
@@ -19,7 +19,7 @@ class _RFCNHead(nn.Module):
     def __init__(self, in_channels: int, n_targets: int, k: int) -> None:
         super().__init__()
         self.sm_conv = nn.Conv2d(in_channels, n_targets*k**2, kernel_size=1)
-        self.roi_pool = PSROIPool(k)
+        self.roi_pool = PSROIPool(n_targets, k)
 
         self.n_targets = n_targets
 
@@ -33,12 +33,8 @@ class _RFCNHead(nn.Module):
             scores: (|R|, n_targets) scores for each target for each region.
         """
         score_map = self.sm_conv(x)  # (n_targets*k^2, H, W)
-
-        scores = torch.empty(len(regions), self.n_targets, requires_grad=True)
-        target_chunks = torch.chunk(score_map, self.n_targets)  # n_targets * (k^2, H, W)
-        for i, region in enumerate(regions):
-            for j, target_chunk in enumerate(target_chunks):
-                scores[i, j] = self.roi_pool(target_chunk, region)
+        pooled = self.roi_pool(score_map, torch.as_tensor(regions))  # (|R|, n_targets, k, k)
+        scores = pooled.mean(-1).mean(-1)  # (|R|, n_targets)
 
         return scores
 
