@@ -5,7 +5,7 @@ import torch
 from torch.utils.model_zoo import load_url
 from torchvision.models.resnet import model_urls
 
-from ..models.backbones import resnet
+from detect_to_track.models.backbones import resnet
 
 
 @pytest.mark.parametrize('depth', [50, 101, 152])

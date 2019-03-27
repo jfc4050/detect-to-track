@@ -12,8 +12,8 @@ from tensorboardX import SummaryWriter
 from ml_utils.data import get_subset_lengths
 from ml_utils.prediction_filtering import PredictionFilterPipeline
 
-from ..data import ImageInstance
-from ..data.encoding import (
+from .data import ImageInstance
+from .data.encoding import (
     AnchorEncoder, RegionEncoder, frcnn_box_decode, make_input_transform
 )
 
