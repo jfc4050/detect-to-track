@@ -206,9 +206,41 @@ def frcnn_box_decode(anchors: np.ndarray, offsets: np.ndarray) -> np.ndarray:
     return boxes
 
 
-class TrackEncoder:
-    def __init__(self):
-        raise NotImplementedError
+def track_encode(
+        labels_0: Sequence[ObjectLabel],
+        labels_1: Sequence[ObjectLabel]
+) -> Tuple[np.ndarray, np.ndarray]:
+    """encodes track regression targets.
 
-    def __call__(self):
-        raise NotImplementedError
+    rules:
+        1) losses are only evaluated for ground-truth objects existing in
+            both frames.
+        2) labels are assigned to ground-truth rois from the first frame.
+
+    Args:
+        labels_0: object labels in frame 0.
+        labels_1: object labels in frame 1.
+
+    Returns:
+        rois: (|R|, 4) ground truth rois from frame 0, excluding objects
+            not present in frame 1.
+        t_star: (|R|, 4) encodes bounding box transformation from time step t
+            to time step t+tau.
+    """
+    ### get unique identifiers of objects that are present in both frames.
+    # an object can be uniquely identified by its (class_id, track_id) pair
+    labels_0 = {(lbl.class_id, lbl.track_id): lbl for lbl in labels_0}
+    labels_1 = {(lbl.class_id, lbl.track_id): lbl for lbl in labels_1}
+    exists_in_both = set(labels_0.keys()).intersection(set(labels_1.keys()))
+
+    boxes_0, boxes_1 = list(), list()
+    for ident in exists_in_both:
+        boxes_0.append(labels_0[ident].box)
+        boxes_1.append(labels_1[ident].box)
+
+    boxes_0 = np.array(boxes_0)  # (|R|, 4), are also the rois
+    boxes_1 = np.array(boxes_1)  # (|R|, 4)
+
+    t_star = frcnn_box_encode(boxes_0, boxes_1)
+
+    return boxes_0, t_star
