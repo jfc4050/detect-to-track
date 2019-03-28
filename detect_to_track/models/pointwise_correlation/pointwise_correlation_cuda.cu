@@ -1,13 +1,5 @@
 #include <ATen/ATen.h>
-
-
-#define THREADS_PER_BLOCK 1024
-
-
-/* ceiling division with integers. */
-inline int ceilDivide(const int numerator, const int denominator) {
-    return (numerator + denominator - 1) / denominator;
-}
+#include "common/cuda_common.cuh"
 
 
 // TODO - replace placeInputPtr and placeOutputPtr with single function

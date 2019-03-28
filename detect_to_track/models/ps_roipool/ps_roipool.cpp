@@ -1,8 +1,6 @@
 #include <torch/torch.h>
+#include "common/cpp_common.hpp"
 
-#define CHECK_CUDA(x) AT_ASSERTM(x.type().is_cuda(), "CPU op not implemented")
-#define CHECK_CONTIGUOUS(x) AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
-#define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
 
 /* CUDA forward declaration */
 at::Tensor psROIPoolCudaForward(
@@ -21,6 +19,7 @@ at::Tensor psROIPoolCudaBackward(
 );
 
 
+/* check input and forward to CUDA function */
 at::Tensor psROIPoolForward(
     const at::Tensor& FM,
     const at::Tensor& rois,
@@ -34,6 +33,7 @@ at::Tensor psROIPoolForward(
 }
 
 
+/* check input and forward to CUDA function */
 at::Tensor psROIPoolBackward(
     const at::Tensor& gradOut,
     const at::Tensor& rois,

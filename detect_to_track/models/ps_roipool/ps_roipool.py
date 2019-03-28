@@ -16,6 +16,7 @@ _ext = cpp_extension.load(
         Path(this_dir, srcfile) for srcfile in
         ['ps_roipool.cpp', 'ps_roipool_cuda.cu']
     ],
+    extra_include_paths=[str(this_dir.parent)],
     extra_cuda_cflags=['-arch=sm_60']
 )
 

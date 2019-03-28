@@ -17,6 +17,7 @@ _ext = cpp_extension.load(
         Path(this_dir, srcfile) for srcfile in
         ['pointwise_correlation.cpp', 'pointwise_correlation_cuda.cu']
     ],
+    extra_include_paths=[str(this_dir.parent)],
     extra_cuda_cflags=['-arch=sm_60']
 )
 

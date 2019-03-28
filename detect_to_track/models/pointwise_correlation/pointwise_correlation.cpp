@@ -1,14 +1,7 @@
 #include <torch/torch.h>
+#include "common/cpp_common.hpp"
 
-
-#define CHECK_CUDA(x) AT_ASSERTM(x.type().is_cuda(), "CPU op not implemented")
-#define CHECK_CONTIGUOUS(x) AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
-#define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
-
-
-/*
-    CUDA forward declarations
-*/
+/* CUDA forward declaration */
 at::Tensor pointwiseCorrelationCudaForward(
     const at::Tensor& FM0,
     const at::Tensor& FM1,
@@ -16,7 +9,7 @@ at::Tensor pointwiseCorrelationCudaForward(
     const int stride
 );
 
-
+/* CUDA forward declaration */
 std::tuple<at::Tensor, at::Tensor> pointwiseCorrelationCudaBackward(
     const at::Tensor& gradOutput,
     const at::Tensor& FM0,
@@ -26,7 +19,7 @@ std::tuple<at::Tensor, at::Tensor> pointwiseCorrelationCudaBackward(
 );
 
 
-/* forward pass */
+/* check input and forward to CUDA function */
 at::Tensor pointwiseCorrelationForward(
     const at::Tensor& FM0,
     const at::Tensor& FM1,
@@ -39,7 +32,7 @@ at::Tensor pointwiseCorrelationForward(
     return pointwiseCorrelationCudaForward(FM0, FM1, dMax, stride);
 }
 
-/* backward pass */
+/* check input and forward to CUDA function */
 std::tuple<at::Tensor, at::Tensor> pointwiseCorrelationBackward(
     const at::Tensor& gradOut,
     const at::Tensor& FM0,
