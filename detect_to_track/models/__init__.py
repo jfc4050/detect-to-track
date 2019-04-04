@@ -6,3 +6,4 @@ from .roipool.roipool import ROIPool
 
 from .rpn import RPN
 from .rfcn_head import RFCNClsHead, RFCNRegHead
+from .correlation_tracker import CorrelationTracker
