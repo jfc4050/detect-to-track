@@ -35,16 +35,17 @@ class RPN(nn.Module):
             x: (|B|, C, H, W) feature map.
 
         Returns:
+            x: (|B|, C', H', W') regression features.
             c_hat: (|B|, |A|, 2) anchorwise class score (object and not object).
             b_hat: (|B|, |A|, 4) anchorwise bounding box offsets.
         """
-        x = relu(self.conv(x))  # (|B|, C', H, W)
-        o_hat = self.cls_fc(x)  # (|B|, 2*a, H, W), a = anchors per cell.
-        b_hat = self.reg_fc(x)  # (|B|, 4*a, H, W)
+        x = relu(self.conv(x))  # (|B|, C', H', W')
+        o_hat = self.cls_fc(x)  # (|B|, 2*a, H', W'), a = anchors per cell.
+        b_hat = self.reg_fc(x)  # (|B|, 4*a, H', W')
 
         o_hat = self._flatten_outputs(o_hat, 2)  # (|B|, |A|, 2)
         b_hat = self._flatten_outputs(b_hat, 4)  # (|B|, |A|, 4)
 
         o_hat = softmax(o_hat, dim=2)  # object vs not object
 
-        return o_hat, b_hat
+        return x, o_hat, b_hat
