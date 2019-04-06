@@ -1,7 +1,8 @@
 """R-FCN head"""
 
+from typing import Tuple
+
 from torch import nn, Tensor
-import numpy as np
 
 from . import PSROIPool
 
@@ -22,7 +23,7 @@ class _RFCNHead(nn.Module):
 
         self.n_targets = n_targets
 
-    def forward(self, x: Tensor, regions: np.ndarray) -> Tensor:
+    def forward(self, x: Tensor, regions: Tensor) -> Tensor:
         """
         Args:
             x: (C, H, W) input feature map.
@@ -41,20 +42,32 @@ class _RFCNHead(nn.Module):
         return scores
 
 
-class RFCNClsHead(_RFCNHead):
-    """RFCN head for classification."""
+class RFCN(nn.Module):
+    """R-FCN. see https://arxiv.org/abs/1605.06409.
+
+    Args:
+        in_channels: input feature map channels.
+        n_classes: number of non-background clases.
+        k: height and width of spatial grid. see paper.
+    """
     def __init__(self, in_channels: int, n_classes: int, k: int) -> None:
-        super().__init__(in_channels, n_classes + 1, k)
+        self.cls_head = _RFCNHead(in_channels, n_classes + 1, k)
+        self.reg_head = _RFCNHead(in_channels, 4, k)
         self.softmax = nn.Softmax(dim=1)
 
-    def forward(self, x: Tensor, regions: np.ndarray) -> Tensor:
-        scores = super().forward(x, regions)  # (|R|, n_classes + 1)
-        preds = self.softmax(scores)  # (|R|, n_classes+1)
+    def forward(self, x: Tensor, regions: Tensor) -> Tuple[Tensor, Tensor]:
+        """
+        Args:
+            x: (C, H, W) input feature map.
+            regions: (|R|, 4) region proposals.
 
-        return preds
+        Returns:
+            c_hat: (|R|, n_classes) region classification scores.
+            b_hat: (|R|, 4) object bounding box offsets from regions.
+        """
+        c_hat = self.cls_head(x, regions)
+        c_hat = self.softmax(c_hat)
 
+        b_hat = self.reg_head(x, regions)
 
-class RFCNRegHead(_RFCNHead):
-    """RFCN head for bounding box regression."""
-    def __init__(self, in_channels: int, k: int) -> None:
-        super().__init__(in_channels, 4, k)
+        return c_hat, b_hat

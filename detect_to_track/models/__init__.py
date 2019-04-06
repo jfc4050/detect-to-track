@@ -6,5 +6,5 @@ from .roipool.roipool import ROIPool
 
 from .resnet import ResNetFeatures, resnet
 from .rpn import RPN
-from .rfcn_head import RFCNClsHead, RFCNRegHead
+from .rfcn import RFCN
 from .correlation_tracker import CorrelationTracker
