@@ -4,7 +4,6 @@ from typing import Tuple, Sequence
 
 import torch
 from torch import Tensor
-from torch.nn import Module
 from torch.nn.parallel import DataParallel
 from torch.utils.data import Dataset
 from torch.optim import SGD
@@ -21,7 +20,7 @@ from .data.encoding import (
     track_encode
 )
 from .loss import RPNLoss, RCNNLoss, TrackLoss
-from .models.resnet import ResNetFeatures
+from .models import DetectTrackModule, ResNetFeatures
 from .utils import tensor_to_ndarray, make_input_transform
 
 
@@ -33,11 +32,7 @@ class DetectTrackTrainer:
     see https://arxiv.org/abs/1506.01497.
 
     Args:
-        backbone: extracts feature map from image.
-        rpn: region proposal network: feature map -> region proposals
-        rcnn: region based convolutional neural network:
-            region proposals -> predictions
-        c_tracker: tracker operating on correlation features.
+        model:
         trn_set: training set.
         val_set: validation set.
         split_size: number of training examples to train on before
@@ -58,10 +53,7 @@ class DetectTrackTrainer:
     """
     def __init__(
             self,
-            backbone: Module,
-            rpn: Module,
-            rcnn: Module,
-            c_tracker: Module,
+            model: DetectTrackModule,
             trn_set: Dataset,
             val_set: Dataset,
             split_size: int,
@@ -78,14 +70,8 @@ class DetectTrackTrainer:
         ### models
         self._im_to_x = make_input_transform(net_input_hw)
         if torch.cuda.device_count() > 1:
-            backbone = DataParallel(backbone)
-            rpn = DataParallel(rpn)
-            rcnn = DataParallel(rcnn)
-            c_tracker = DataParallel(c_tracker)
-        self.backbone = backbone.cuda()
-        self.rpn = rpn.cuda()
-        self.rcnn = rcnn.cuda()
-        self.c_tracker = c_tracker.cuda()
+            model = DataParallel(model)
+        self.model = model.cuda()
 
         ### datasets
         self.trn_set = trn_set
@@ -104,12 +90,7 @@ class DetectTrackTrainer:
 
         ### optimizers
         self._loss_coefs = loss_coefs
-        self._optim = SGD([
-            {'params': self.backbone.parameters()},
-            {'params': self.rpn.parameters()},
-            {'params': self.rcnn.parameters()},
-            {'params': self.c_tracker.parameters()}
-        ], **sgd_kwargs)
+        self._optim = SGD(self.model.parameters(), **sgd_kwargs)
 
         self.tboard_writer = tboard_writer
 
@@ -137,7 +118,7 @@ class DetectTrackTrainer:
         x1 = self._im_to_x(inst_1.im)  # (3, H, W)
         x = torch.stack([x0, x1])  # (2, H, W)
         x = x.cuda()
-        fmaps = self.backbone(x)  # pyramid of feature maps 3*(2, ...)
+        fmaps = self.model.backbone(x)  # pyramid of feature maps 3*(2, ...)
 
         ### compute losses for RPN
         ###   - inputs are feature maps
@@ -149,7 +130,7 @@ class DetectTrackTrainer:
         c_star_rpn = np.stack([c0_star_rpn, c1_star_rpn])  # (2, |A|)
         b_star_rpn = np.stack([b0_star_rpn, b1_star_rpn])  # (2, |A|, 4)
         # RPN predictions.
-        o_hat_rpn, b_hat_rpn, fm_reg = self.rpn(fmaps.c4)
+        o_hat_rpn, b_hat_rpn, fm_reg = self.model.rpn(fmaps.c4)
         # RPN loss.
         lw_rpn = torch.as_tensor(lw_rpn).cuda()
         c_star_rpn = torch.as_tensor(c_star_rpn).cuda()
@@ -192,8 +173,8 @@ class DetectTrackTrainer:
         c5_0, c5_1 = fmaps.c5  # 2*(C', H', W')
         regions_0 = torch.as_tensor(regions_0).cuda()  # (|R0|, 4)
         regions_1 = torch.as_tensor(regions_1).cuda()  # (|R1|, 4)
-        c0_hat_rcnn, b0_hat_rcnn = self.rcnn(c5_0, regions_0)  # (|R0|, ...)
-        c1_hat_rcnn, b1_hat_rcnn = self.rcnn(c5_1, regions_1)  # (|R1|, ...)
+        c0_hat_rcnn, b0_hat_rcnn = self.model.rcnn(c5_0, regions_0)  # (|R0|, ...)
+        c1_hat_rcnn, b1_hat_rcnn = self.model.rcnn(c5_1, regions_1)  # (|R1|, ...)
         c_hat_rcnn = torch.cat([c0_hat_rcnn, c1_hat_rcnn])  # (|R0 u R1|, n_classes)
         b_hat_rcnn = torch.cat([b0_hat_rcnn, b1_hat_rcnn])  # (|R0 u R1|, 4)
         # RCNN loss.
@@ -217,7 +198,7 @@ class DetectTrackTrainer:
         fm_pyr1 = ResNetFeatures(c3=c3_1, c4=c4_1, c5=c5_1)
         fm_reg0, fm_reg1 = fm_reg  # 2 * (Cr, Hr, Wr) RPN feature maps
         track_rois = torch.as_tensor(track_rois).cuda()  # (|R0 n R1|, 4)
-        t_hat = self.c_tracker(
+        t_hat = self.model.c_tracker(
             fm_pyr0, fm_pyr1, fm_reg0, fm_reg1, track_rois
         )  # (|R0 n R1|, 4)
         # CT loss.

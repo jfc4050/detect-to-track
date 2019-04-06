@@ -8,3 +8,4 @@ from .resnet import ResNetFeatures, resnet
 from .rpn import RPN
 from .rfcn import RFCN
 from .correlation_tracker import CorrelationTracker
+from .detect_track import DetectTrackModule
