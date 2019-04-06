@@ -4,7 +4,6 @@ import abc
 from typing import Tuple, Sequence
 
 import numpy as np
-from torchvision.transforms import Compose, Resize, ToTensor
 from ml_utils.bbox_utils import ijhw_to_ijij, compute_ious
 
 from . import ObjectLabel
@@ -144,14 +143,6 @@ class RegionEncoder(FRCNNLabelEncoder):
         )  # (|A|, 4)
 
         return c_star, b_star
-
-
-def make_input_transform(net_input_hw: int):
-    """return transform layer for PIL Image -> network input"""
-    return Compose([
-        Resize((net_input_hw, net_input_hw)),
-        ToTensor
-    ])
 
 
 def frcnn_box_encode(anchors: np.ndarray, boxes: np.ndarray) -> np.ndarray:
