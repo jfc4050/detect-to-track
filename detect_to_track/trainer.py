@@ -20,7 +20,7 @@ from .data.encoding import (
     frcnn_box_decode,
     track_encode
 )
-from .loss import RPNLoss, RCNNLoss
+from .loss import RPNLoss, RCNNLoss, TrackLoss
 from .models.resnet import ResNetFeatures
 from .utils import tensor_to_ndarray, make_input_transform
 
@@ -51,7 +51,6 @@ class DetectTrackTrainer:
             confidence subset of proposals.
         alpha: loss alpha balancing factor.
         gamma: loss focusing factor.
-        track_loss_func: loss function for tracking module.
         loss_coefs: leading coefficient for each element of joint loss.
             gradients are backpropagated from dot(loss_coefs, losses)
         sgd_kwargs: parameters for stochastic gradient descent.
@@ -72,7 +71,6 @@ class DetectTrackTrainer:
             region_filter: PredictionFilterPipeline,
             alpha: float,
             gamma: float,
-            track_loss_func: Module,
             loss_coefs: Sequence[float],
             sgd_kwargs: dict,
             tboard_writer: SummaryWriter
@@ -102,7 +100,7 @@ class DetectTrackTrainer:
         ### loss functions
         self._rpn_loss_func = RPNLoss(alpha, gamma)
         self._rcnn_loss_func = RCNNLoss(alpha, gamma)
-        self._track_loss_func = track_loss_func
+        self._track_loss_func = TrackLoss()
 
         ### optimizers
         self._loss_coefs = loss_coefs
