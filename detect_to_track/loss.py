@@ -1,5 +1,7 @@
 """general loss functions for object detection."""
 
+from typing import Tuple
+
 import torch
 from torch import nn, Tensor
 
@@ -48,7 +50,7 @@ class FocalLoss(nn.BCELoss):
 
 class BBoxLoss(nn.SmoothL1Loss):
     """smooth L1 loss applied only at positive anchors"""
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(reduction='none')
 
     def forward(self, b_hat: Tensor, b_star: Tensor, c_star: Tensor) -> Tensor:
@@ -68,50 +70,92 @@ class BBoxLoss(nn.SmoothL1Loss):
         return l1
 
 
-class DetectionLoss(nn.Module):
-    """generic loss function for object detection.
+class RPNLoss(nn.Module):
+    """loss function for region proposal network.
 
     Args:
         alpha: see FocalLoss.
         gamma: see FocalLoss.
     """
-    def __init__(
-            self,
-            cls_loss_module: nn.Module,
-            reg_loss_module: nn.Module
-    ) -> None:
+    def __init__(self, alpha: float, gamma: float) -> None:
         super().__init__()
-        self.cls_loss_module = cls_loss_module
-        self.reg_loss_module = reg_loss_module
+        self._o_loss_func = FocalLoss(alpha, gamma)
+        self._b_loss_func = BBoxLoss()
 
     def forward(
             self,
-            weights: Tensor,
+            lw: Tensor,
             o_hat: Tensor,
             o_star: Tensor,
             b_hat: Tensor,
             b_star: Tensor
-    ) -> Tensor:
+    ) -> Tuple[Tensor, Tensor]:
+        """compute objectness and regression loss.
+
+        Args:
+            lw: (|B|, |A|); anchorwise loss weights.
+            o_hat: (|B|, |A|, 2) class predictions (object or not object).
+            o_star: (|B|, |A|) ground-truth objectness or classes.
+            b_hat: (|B|, |A|, 4) predicted bounding box offsets from anchors.
+            b_star: (|B|, |A|, 4) ground truth bounding box offsets from anchors.
+
+        Returns:
+            o_loss: (scalar) classification loss.
+            b_loss: (scalar) regression loss.
+        """
+        o_loss = self._o_loss_func(o_hat, o_star)
+        b_loss = self._b_loss_func(b_hat, b_star, o_star)
+
+        o_loss = (lw * o_loss).mean()
+        b_loss = b_loss.mean()
+
+        return o_loss, b_loss
+
+
+class RCNNLoss(nn.Module):
+    """loss function for region based convolutional neural network.
+
+    Args:
+        alpha: see FocalLoss.
+        gamma: see FocalLoss.
+    """
+    def __init__(self, alpha: float, gamma: float) -> None:
+        super().__init__()
+        self._c_loss_func = FocalLoss(alpha, gamma)
+        self._b_loss_func = BBoxLoss()
+
+    def forward(self, c_hat, c_star, b_hat, b_star):
         """compute classification and regression loss.
 
         Args:
-            weights (FloatTensor): (|B|, |A|) anchorwise loss weights.
-            c_hat (FloatTensor): (|B|, |A|, 2) class predictions
-                (object or not object).
-            c_star (FloatTensor): (|B|, |A|, 2) ground-truth classes.
-            b_hat (FloatTensor): (|B|, |A|, 4) predicted bounding box offsets
-                from anchors.
-            b_star (FloatTensor): (|B|, |A|, 4) ground truth bounding box
-                offsets from anchors.
+            c_hat: (|R|, n_classes) class predictions.
+            c_star: (|R|) ground-truth classes.
+            b_hat: (|R|, 4) predicted bounding box offsets from anchors.
+            b_star: (|R|, 4) ground truth bounding box offsets from anchors.
 
         Returns:
-            cls_loss: (scalar) classification loss.
-            FloatTensor: (scalar) regression loss.
+            c_loss: (scalar) classification loss.
+            b_loss: (scalar) regression loss.
         """
-        cls_loss = self.cls_loss_module(o_hat, o_star)
-        reg_loss = self.reg_loss_module(b_hat, b_star, o_star)
+        # can't have meaningful batch dimension, because different images
+        # from a batch may have different numbers of regions.
+        # losses for region-based predictions from different images in batch
+        # can still be made to benefit from batch computation by concatenating
+        # along region dimension.
+        c_hat = c_hat[None, :, :]  # (1, |R|, n_classes)
+        c_star = c_star[None, :]  # (1, |R|)
+        b_hat = b_hat[None, :, :]  # (1, |R|, 4)
+        b_star = b_star[None, :, :]  # (1, |R|, 4)
 
-        cls_loss = (weights * cls_loss).sum()
-        reg_loss = (weights * reg_loss).sum()
+        c_loss = self._c_loss_func(c_hat, c_star)
+        b_loss = self._b_loss_func(b_hat, b_star, c_star)
 
-        return cls_loss, reg_loss
+        c_loss = c_loss.mean()
+        b_loss = b_loss.mean()
+
+        return c_loss, b_loss
+
+
+class TrackLoss(nn.Module):
+    pass
+
