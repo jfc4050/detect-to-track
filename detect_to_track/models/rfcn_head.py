@@ -1,6 +1,5 @@
 """R-FCN head"""
 
-import torch
 from torch import nn, Tensor
 import numpy as np
 
@@ -32,8 +31,11 @@ class _RFCNHead(nn.Module):
         Returns:
             scores: (|R|, n_targets) scores for each target for each region.
         """
-        score_map = self.sm_conv(x)  # (n_targets*k^2, H, W)
-        pooled = self.roi_pool(score_map, torch.as_tensor(regions))  # (|R|, n_targets, k, k)
+        x = x[None, :, :, :]  # (1, C, H, W)
+        score_map = self.sm_conv(x)  # (1, n_targets*k^2, H, W)
+        score_map = score_map.squeeze(0)  # (n_targets*k^2, H, W)
+
+        pooled = self.roi_pool(score_map, regions)  # (|R|, n_targets, k, k)
         scores = pooled.mean(-1).mean(-1)  # (|R|, n_targets)
 
         return scores
