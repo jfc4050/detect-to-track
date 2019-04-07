@@ -5,7 +5,7 @@ from typing import Tuple, Sequence
 import torch
 from torch import Tensor
 from torch.nn.parallel import DataParallel
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, RandomSampler, BatchSampler
 from torch.optim import SGD
 import numpy as np
 from tensorboardX import SummaryWriter
@@ -21,7 +21,7 @@ from .data.encoding import (
 )
 from .loss import RPNLoss, RCNNLoss, TrackLoss
 from .models import DetectTrackModule, ResNetFeatures
-from .utils import tensor_to_ndarray, make_input_transform
+from .utils import DTLoss, tensor_to_ndarray, make_input_transform
 
 
 class DetectTrackTrainer:
@@ -37,6 +37,7 @@ class DetectTrackTrainer:
         val_set: validation set.
         split_size: number of training examples to train on before
             validating and reporting.
+        batch_size: minibatch size.
         net_input_hw: height and width of network input tensor.
         anchor_encoder: assigns ground-truth labels and bounding boxes
             anchorwise.
@@ -57,6 +58,7 @@ class DetectTrackTrainer:
             trn_set: Dataset,
             val_set: Dataset,
             split_size: int,
+            batch_size: int,
             net_input_hw: int,
             anchor_encoder: AnchorEncoder,
             region_encoder: RegionEncoder,
@@ -76,6 +78,7 @@ class DetectTrackTrainer:
         ### datasets
         self.trn_set = trn_set
         self.val_set = val_set
+        self.batch_size = batch_size
         self._subset_lens = get_subset_lengths(len(self.trn_set), split_size)
 
         ### ground-truth label encoding
@@ -87,6 +90,7 @@ class DetectTrackTrainer:
         self._rpn_loss_func = RPNLoss(alpha, gamma)
         self._rcnn_loss_func = RCNNLoss(alpha, gamma)
         self._track_loss_func = TrackLoss()
+        self._loss_coefs = torch.as_tensor(loss_coefs).cuda()
 
         ### optimizers
         self._loss_coefs = loss_coefs
@@ -98,25 +102,26 @@ class DetectTrackTrainer:
 
     def _forward_loss(
             self, instance: Tuple[ImageInstance, ImageInstance]
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+    ) -> DTLoss:
         """compute joint loss for a single instance.
 
         Args:
             instance: (image, labels) tuple for time t, t+tau.
 
         Returns:
-            o_loss_rpn: RPN binary classification loss.
-            b_loss_rpn: RPN bounding box regression loss.
-            c_loss_rcnn: RCNN multiclass classification loss.
-            b_loss_rcnn: RCNN bounding box regression loss.
-            t_loss: cross-frame tracking loss.
+            dt_loss:
+                o_loss: RPN binary classification loss.
+                b_loss_rpn: RPN bounding box regression loss.
+                c_loss: RCNN multiclass classification loss.
+                b_loss_rcnn: RCNN bounding box regression loss.
+                t_loss: cross-frame tracking loss.
         """
         inst_0, inst_1 = instance
 
         ### extract feature maps.
         x0 = self._im_to_x(inst_0.im)  # (3, H, W)
         x1 = self._im_to_x(inst_1.im)  # (3, H, W)
-        x = torch.stack([x0, x1])  # (2, H, W)
+        x = torch.stack([x0, x1])  # (2, 3, H, W)
         x = x.cuda()
         fmaps = self.model.backbone(x)  # pyramid of feature maps 3*(2, ...)
 
@@ -204,17 +209,58 @@ class DetectTrackTrainer:
         # CT loss.
         t_loss = self._track_loss_func(t_hat, t_star)
 
-        return o_loss_rpn, b_loss_rpn, c_loss_rcnn, b_loss_rcnn, t_loss
+        dt_loss = DTLoss(
+            o_loss=o_loss_rpn,
+            b_loss_rpn=b_loss_rpn,
+            c_loss=c_loss_rcnn,
+            b_loss_rcnn=b_loss_rcnn,
+            t_loss=t_loss
+        )
 
-    def train_on_subset(self, subset: Dataset) -> float:
-        """train on subset and return average loss."""
-        raise NotImplementedError
+        return dt_loss
 
-    @torch.no_grad()
-    def validate(self) -> float:
-        """run on validation set and return average loss"""
-        raise NotImplementedError
+    def _minibatch_loss(
+            self,
+            minibatch: Sequence[Tuple[ImageInstance, ImageInstance]]
+    ) -> DTLoss:
+        """compute averaged loss for a single minibatch"""
+        minibatch_loss = DTLoss()
+        for instance in minibatch:
+            instance_loss = self._forward_loss(instance)
+            minibatch_loss += instance_loss
 
-    def train_epoch(self):
+        return minibatch_loss
+
+    def run_on_subset(self, subset: Dataset) -> float:
+        """train on subset, validate, and report."""
+        trn_sampler = BatchSampler(RandomSampler(subset), self.batch_size, False)
+        val_sampler = BatchSampler(RandomSampler(self.val_set), self.batch_size, False)
+
+        ### train
+        self.model.train()
+        trn_loss = DTLoss()
+        for minibatch in trn_sampler:
+            minibatch_loss = self._minibatch_loss(minibatch)
+
+            self._optim.zero_grad()
+            minibatch_loss.backward(self._loss_coefs)
+            self._optim.step()
+
+            trn_loss += minibatch_loss
+            self.n_iters += len(minibatch)
+
+        ### validate
+        self.model.eval()
+        val_loss = DTLoss()
+        with torch.no_grad():
+            for minibatch in val_sampler:
+                minibatch_loss = self._minibatch_loss(minibatch)
+
+                val_loss += minibatch_loss
+
+        ### report
+        print(' '.join([str(trn_loss), str(val_loss)]))
+
+    def run_epoch(self):
         """do one full pass through the entire dataset"""
         raise NotImplementedError
