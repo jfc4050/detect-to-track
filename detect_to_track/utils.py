@@ -127,6 +127,19 @@ class DTLoss(object):
             self.t_loss
         ])
 
+    def to_scalar(self, coefs: Optional[Tensor] = None) -> Tensor:
+        """linear combination of individual losses as specified by coefs"""
+        if coefs is None:
+            coefs = torch.ones(5)
+
+        loss_tensor = self.as_tensor()
+        coefs = coefs.to(loss_tensor)
+
+        scalar_loss = torch.dot(coefs, loss_tensor)
+        scalar_loss /= self.count  # normalize
+
+        return scalar_loss
+
     def backward(
             self,
             grad_tensors: Optional[Tensor] = None,
@@ -134,16 +147,9 @@ class DTLoss(object):
             create_graph: bool = False
     ) -> None:
         """loss backprop. mimics tensor.backward() interface."""
-        loss_tensor = self.as_tensor()
-        if grad_tensors is None:
-            grad_tensors = torch.ones(5).to(loss_tensor)
-
-        # linear combination of individual losses as specified by grad_tensors
-        scalar_loss = torch.dot(grad_tensors, loss_tensor)
-        scalar_loss /= self.count  # normalize
-
-        scalar_loss.backward(
-            retain_graph=retain_graph, create_graph=create_graph
+        self.to_scalar(grad_tensors).backward(
+            retain_graph=retain_graph,
+            create_graph=create_graph
         )
 
     def __repr__(self) -> str:

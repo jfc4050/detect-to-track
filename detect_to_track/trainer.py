@@ -1,14 +1,13 @@
 """handles joint training of entire system"""
 
+import math
 from typing import Tuple, Sequence
 
 import torch
-from torch import Tensor
 from torch.nn.parallel import DataParallel
-from torch.utils.data import Dataset, RandomSampler, BatchSampler
+from torch.utils.data import Dataset, RandomSampler, BatchSampler, random_split
 from torch.optim import SGD
 import numpy as np
-from tensorboardX import SummaryWriter
 from ml_utils.data import get_subset_lengths
 from ml_utils.prediction_filtering import PredictionFilterPipeline
 
@@ -50,7 +49,7 @@ class DetectTrackTrainer:
         loss_coefs: leading coefficient for each element of joint loss.
             gradients are backpropagated from dot(loss_coefs, losses)
         sgd_kwargs: parameters for stochastic gradient descent.
-        tboard_writer: tensorboard logger.
+        patience:
     """
     def __init__(
             self,
@@ -67,7 +66,7 @@ class DetectTrackTrainer:
             gamma: float,
             loss_coefs: Sequence[float],
             sgd_kwargs: dict,
-            tboard_writer: SummaryWriter
+            patience: int
     ) -> None:
         ### models
         self._im_to_x = make_input_transform(net_input_hw)
@@ -96,9 +95,12 @@ class DetectTrackTrainer:
         self._loss_coefs = loss_coefs
         self._optim = SGD(self.model.parameters(), **sgd_kwargs)
 
-        self.tboard_writer = tboard_writer
+        self.patience = patience
 
+        ### state
         self.n_iters = 0
+        self.best_val_loss = float('inf')
+        self.iters_no_improvement = 0
 
     def _forward_loss(
             self, instance: Tuple[ImageInstance, ImageInstance]
@@ -231,7 +233,7 @@ class DetectTrackTrainer:
 
         return minibatch_loss
 
-    def run_on_subset(self, subset: Dataset) -> float:
+    def run_on_subset(self, subset: Dataset) -> Tuple[DTLoss, DTLoss]:
         """train on subset, validate, and report."""
         trn_sampler = BatchSampler(RandomSampler(subset), self.batch_size, False)
         val_sampler = BatchSampler(RandomSampler(self.val_set), self.batch_size, False)
@@ -258,9 +260,29 @@ class DetectTrackTrainer:
 
                 val_loss += minibatch_loss
 
-        ### report
-        print(' '.join([str(trn_loss), str(val_loss)]))
+        return trn_loss, val_loss
 
-    def run_epoch(self):
-        """do one full pass through the entire dataset"""
-        raise NotImplementedError
+    def train(self, max_iters: int = math.inf) -> None:
+        """iterate until stopping condition is satisfied."""
+        while True:
+            for trn_subset in random_split(self.trn_set, self._subset_lens):
+                ### train on subset
+                trn_loss, val_loss = self.run_on_subset(trn_subset)
+
+                ### check for improvement
+                scalar_val_loss = float(val_loss.to_scalar(self._loss_coefs))
+                if scalar_val_loss < self.best_val_loss:
+                    self.best_val_loss = scalar_val_loss
+                    self.iters_no_improvement = 0
+                else:
+                    self.iters_no_improvement += 1
+
+                ### report
+                print(' '.join([str(trn_loss), str(val_loss)]))
+
+                ### check if any stopping conditions have been satisfied
+                if any([
+                        self.n_iters > max_iters,
+                        self.iters_no_improvement > self.patience
+                ]):
+                    return
