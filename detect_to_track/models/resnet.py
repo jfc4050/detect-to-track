@@ -1,7 +1,7 @@
 """stride-reduced resnet with dilated convolutions"""
 
 import re
-from typing import NamedTuple, Optional, Sequence
+from typing import NamedTuple, Optional
 
 from torch import nn, Tensor
 from torch.utils import model_zoo
@@ -42,30 +42,35 @@ class _DilatedBottleneck(Bottleneck):
         )
 
 
-class _SRResNetBase(ResNet):
+class SRResNet(ResNet):
     """stride-reduced ResNet base with final convolutional layers replaced
     with dilated convolutions"""
     inplanes: int = 64
 
     def __init__(
             self,
-            layers: Sequence[int],
+            depth: int,
             zero_init_residual: bool = False,
-            first_trainable_layer: int = 4
+            first_trainable_layer: int = 3
     ):
         nn.Module.__init__(self)
+
         self.first_trainable_layer = first_trainable_layer
 
+        layers_1, layers_2, layers_3, layers_4 = {
+            50: [3, 4, 6, 3],
+            101: [3, 4, 23, 3],
+            152: [3, 8, 36, 3]
+        }[depth]
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(Bottleneck, 64, layers[0])
-        self.layer2 = self._make_layer(Bottleneck, 128, layers[1], stride=2)
-        self.layer3 = self._make_layer(Bottleneck, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(_DilatedBottleneck, 512, layers[3], stride=1)
+        self.layer1 = self._make_layer(Bottleneck, 64, layers_1)
+        self.layer2 = self._make_layer(Bottleneck, 128, layers_2, stride=2)
+        self.layer3 = self._make_layer(Bottleneck, 256, layers_3, stride=2)
+        self.layer4 = self._make_layer(_DilatedBottleneck, 512, layers_4, stride=1)
         self.layer5 = nn.Conv2d(2048, 512, kernel_size=3, dilation=6, padding=6)
-
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -115,12 +120,10 @@ class _SRResNetBase(ResNet):
 
         return should_freeze
 
-    def load_state_dict(self, state_dict: dict) -> None:
-        """load state dict then freeze everything that should_freeze_layer
-        tells us to freeze."""
-        super().load_state_dict(state_dict, strict=False)
+    def freeze(self, indiscriminate: bool = False) -> None:
+        """freeze parameters"""
         for param_name, param in self.named_parameters():
-            if self._should_freeze_layer(param_name):
+            if self._should_freeze_layer(param_name) or indiscriminate:
                 param.requires_grad_(False)
 
     def train(self, mode: bool = True) -> None:
@@ -130,11 +133,16 @@ class _SRResNetBase(ResNet):
                 child.train(mode)
 
     def eval(self) -> None:
-        """freeze everthing indiscriminately."""
+        """freeze all batch norm + dropout indiscriminately."""
         super().train(False)
 
 
-def resnet(depth: int, pretrained: bool = True, **kwargs) -> nn.Module:
+def resnet(
+        depth: int,
+        zero_init_residual: bool = True,
+        first_trainable_layer: int = 3,
+        pretrained: bool = True,
+) -> nn.Module:
     """constructs a resnet<depth> model.
 
     Args:
@@ -144,16 +152,12 @@ def resnet(depth: int, pretrained: bool = True, **kwargs) -> nn.Module:
     Returns:
         resnet: model.
     """
-    model_menu = {
-        50: [3, 4, 6, 3],
-        101: [3, 4, 23, 3],
-        152: [3, 8, 36, 3]
-    }
-    model = _SRResNetBase(model_menu[depth], **kwargs)
+    model = SRResNet(depth, zero_init_residual, first_trainable_layer)
 
     if pretrained:
         model.load_state_dict(
-            model_zoo.load_url(model_urls[f'resnet{depth}'])
+            model_zoo.load_url(model_urls[f'resnet{depth}']), strict=False
         )
+        model.freeze()
 
     return model

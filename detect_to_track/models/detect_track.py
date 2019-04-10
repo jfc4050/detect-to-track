@@ -47,8 +47,18 @@ class DetectTrackModule(Module):
         self.rcnn = rcnn
         self.c_tracker = c_tracker
 
-    def build_backbone(self, depth: int) -> None:
-        self.backbone = resnet(depth, pretrained=False)
+    def build_backbone(
+            self,
+            depth: int,
+            zero_init_residual: bool = True,
+            first_trainable_layer: int = 3
+    ) -> None:
+        self.backbone = resnet(
+            depth,
+            zero_init_residual=zero_init_residual,
+            first_trainable_layer=first_trainable_layer,
+            pretrained=False
+        )
 
     def build_rpn(self, in_channels: int, n_anchors: int) -> None:
         self.rpn = RPN(in_channels, n_anchors)
