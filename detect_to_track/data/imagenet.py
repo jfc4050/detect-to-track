@@ -199,7 +199,7 @@ class ImagenetValManager(DataManager):
         frame_root = Path(data_root, 'Data', 'VID', 'val')
         pascal_translator = _PascalTranslator(data_root, 'VID')
 
-        snippet_dirs = {p for p in label_root.iterdir() if p.is_dir()}
+        snippet_dirs = [p for p in label_root.iterdir() if p.is_dir()]
 
         index_mappings = list()
         for _ in range(sample_size):
