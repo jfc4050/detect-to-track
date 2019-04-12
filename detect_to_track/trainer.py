@@ -38,10 +38,9 @@ class DetectTrackTrainer:
             validating and reporting.
         batch_size: minibatch size.
         net_input_hw: height and width of network input tensor.
-        anchor_encoder: assigns ground-truth labels and bounding boxes
-            anchorwise.
-        region_encoder: assigns ground-truth labels and bounding boxes
-            regionwise.
+        anchors:
+        encoder_iou_thresh:
+        encoder_iou_margin:
         region_filter: given a set of region proposals, returns a higher
             confidence subset of proposals.
         alpha: loss alpha balancing factor.
@@ -59,8 +58,9 @@ class DetectTrackTrainer:
             split_size: int,
             batch_size: int,
             net_input_hw: int,
-            anchor_encoder: AnchorEncoder,
-            region_encoder: RegionEncoder,
+            anchors: np.ndarray,
+            encoder_iou_thresh: float,
+            encoder_iou_margin: float,
             region_filter: PredictionFilterPipeline,
             alpha: float,
             gamma: float,
@@ -81,8 +81,10 @@ class DetectTrackTrainer:
         self._subset_lens = get_subset_lengths(len(self.trn_set), split_size)
 
         ### ground-truth label encoding
-        self._anchor_encoder = anchor_encoder  # anchorwise label assignment
-        self._region_encoder = region_encoder  # regionwise label assignment
+        self._anchor_encoder = AnchorEncoder(
+            anchors, encoder_iou_thresh, encoder_iou_margin
+        )
+        self._region_encoder = RegionEncoder(encoder_iou_thresh)
         self._region_filter = region_filter  # filters rois before rcnn
 
         ### loss functions

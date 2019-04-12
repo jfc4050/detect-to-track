@@ -1,0 +1,38 @@
+# data
+DATA_ROOT: /home/justin/datasets/ILSVRC2015
+N_CLASSES: 30
+P_DET: 0.5  # probability of sampling from DET instead of VID
+VAL_SIZE: 3000
+SPLIT_SIZE: 10000
+BATCH_SIZE: 5
+
+# anchors
+ANCHOR_SCALE_FACTORS: [0.001, 0.004, 0.016, 0.064, 0.256] 
+ANCHOR_ASPECT_RATIOS: [0.5, 1.0, 2.0]
+
+# encoding
+ENCODER_IOU_THRESH: 0.5
+ENCODER_IOU_MARGIN: 0.2
+
+# region filtering
+TRAIN_ROI_CONF_THRESH: 0.3
+TRAIN_NMS_IOU_THRESH: 0.5
+
+# loss
+ALPHA: 0.25  # for focal loss
+GAMMA: 2.0  # for focal loss
+COEFS: [1., 1., 1., 1., 1.]
+
+SGD_KWARGS:
+  LR: 1.e-3
+  WEIGHT_DECAY: 1.e-4
+  MOMENTUM: 0.9
+
+PATIENCE: 20  # number of iterations with no improvement before quitting
+
+DEPTH: 50  # resnet
+INPUT_SHAPE: [608, 1200]
+
+D_MAX: 8  # max displacement for pointwise correlation
+
+K: 7

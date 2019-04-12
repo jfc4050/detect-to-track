@@ -12,7 +12,6 @@ from ml_utils.prediction_filtering import (
 
 from detect_to_track.models import DetectTrackModule
 from detect_to_track.data.imagenet import ImagenetTrnManager, ImagenetValManager
-from detect_to_track.data.encoding import AnchorEncoder, RegionEncoder
 from detect_to_track.trainer import DetectTrackTrainer
 from detect_to_track.utils import build_anchors
 
@@ -24,49 +23,49 @@ parser.add_argument(
     help='path to cfg file'
 )
 args = parser.parse_args()
-
 cfg = SimpleNamespace(**yaml.load(open(args.cfg)))
 
+prediction_map_hw = (int(x/16) for x in cfg.INPUT_SHAPE)
+# TODO - move these somewhere else
+C4_CHANNELS = 2048
+C5_CHANNELS = 512
+REG_CHANNELS = 512
 
-anchor_cfg = cfg.ANCHORS
-n_anchors = len(anchor_cfg['scale_factors']) * len(anchor_cfg['aspect_ratios'])
-
+### model setup
 model = DetectTrackModule()
 model.build_backbone(cfg.DEPTH)
-model.build_rpn(cfg.C4_CHANNELS, n_anchors)
-model.build_rcnn(cfg.C5_CHANNELS, cfg.N_CLASSES, cfg.K)
-model.build_c_tracker(cfg.REG_CHANNELS, cfg.D_MAX, cfg.R_HW)
+model.build_rpn(
+    C4_CHANNELS,
+    len(cfg.ANCHOR_SCALE_FACTORS) * len(cfg.ANCHOR_ASPECT_RATIOS)
+)
+model.build_rcnn(C5_CHANNELS, cfg.N_CLASSES, cfg.K)
+model.build_c_tracker(REG_CHANNELS, cfg.D_MAX, cfg.K)
 model.backbone.freeze()  # needs to be done after state dict loaded
 
+### anchor setup
+anchors = build_anchors(
+    prediction_map_hw, cfg.ANCHOR_SCALE_FACTORS, cfg.ANCHOR_ASPECT_RATIOS
+)
+
+### data setup
 trn_set = ImagenetTrnManager(cfg.DATA_ROOT, cfg.P_DET)
 val_set = ImagenetValManager(cfg.DATA_ROOT, cfg.VAL_SIZE)
 
-anchors = build_anchors(cfg.C4_HW, **anchor_cfg)
-
-encoding_cfg = cfg.ENCODING
-anchor_encoder = AnchorEncoder(anchors, **encoding_cfg)
-region_encoder = RegionEncoder(encoding_cfg['iou_thresh'])
-
+### encoder setup
 region_filter = PredictionFilterPipeline(
     ConfidenceFilter(cfg.TRAIN_ROI_CONF_THRESH),
-    NMSFilter(cfg.TRAIN_IOU_CONF_THRESH)
+    NMSFilter(cfg.TRAIN_NMS_IOU_THRESH)
 )
 
-loss_cfg = cfg.LOSS
 trainer = DetectTrackTrainer(
     model,
-    trn_set,
-    val_set,
-    cfg.SPLIT_SIZE,
-    cfg.BATCH_SIZE,
-    cfg.NET_INPUT_HW,
-    anchor_encoder,
-    region_encoder,
+    trn_set, val_set, cfg.SPLIT_SIZE, cfg.BATCH_SIZE,
+    cfg.INPUT_SHAPE,
+    anchors,
+    cfg.ENCODER_IOU_THRESH, cfg.ENCODER_IOU_MARGIN,
     region_filter,
-    loss_cfg['alpha'],
-    loss_cfg['gamma'],
-    loss_cfg['coefs'],
-    cfg.OPTIM,
+    cfg.ALPHA, cfg.GAMMA, cfg.COEFS,
+    cfg.SGD_KWARGS,
     cfg.PATIENCE
 )
 
