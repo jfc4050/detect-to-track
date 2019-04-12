@@ -51,6 +51,7 @@ class RFCN(nn.Module):
         k: height and width of spatial grid. see paper.
     """
     def __init__(self, in_channels: int, n_classes: int, k: int) -> None:
+        super().__init__()
         self.cls_head = _RFCNHead(in_channels, n_classes + 1, k)
         self.reg_head = _RFCNHead(in_channels, 4, k)
         self.softmax = nn.Softmax(dim=1)
