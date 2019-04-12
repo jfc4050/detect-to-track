@@ -8,7 +8,6 @@ from torch.nn.parallel import DataParallel
 from torch.utils.data import Dataset, RandomSampler, BatchSampler, random_split
 from torch.optim import SGD
 import numpy as np
-from ml_utils.data import get_subset_lengths
 from ml_utils.prediction_filtering import PredictionFilterPipeline
 
 from .data import ImageInstance
@@ -20,7 +19,12 @@ from .data.encoding import (
 )
 from .loss import RPNLoss, RCNNLoss, TrackLoss
 from .models import DetectTrackModule, ResNetFeatures
-from .utils import DTLoss, tensor_to_ndarray, make_input_transform
+from .utils import (
+    DTLoss,
+    tensor_to_ndarray,
+    make_input_transform,
+    get_subset_lengths
+)
 
 
 class DetectTrackTrainer:
