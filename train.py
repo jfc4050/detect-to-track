@@ -25,26 +25,20 @@ parser.add_argument(
 args = parser.parse_args()
 cfg = SimpleNamespace(**yaml.load(open(args.cfg)))
 
-prediction_map_hw = (int(x/16) for x in cfg.INPUT_SHAPE)
-# TODO - move these somewhere else
-C4_CHANNELS = 2048
-C5_CHANNELS = 512
-REG_CHANNELS = 512
-
 ### model setup
 model = DetectTrackModule()
 model.build_backbone(cfg.DEPTH)
-model.build_rpn(
-    C4_CHANNELS,
-    len(cfg.ANCHOR_SCALE_FACTORS) * len(cfg.ANCHOR_ASPECT_RATIOS)
-)
-model.build_rcnn(C5_CHANNELS, cfg.N_CLASSES, cfg.K)
-model.build_c_tracker(REG_CHANNELS, cfg.D_MAX, cfg.K)
+model.build_rpn(len(cfg.ANCHOR_SCALE_FACTORS)*len(cfg.ANCHOR_ASPECT_RATIOS))
+model.build_rcnn(cfg.N_CLASSES, cfg.K)
+model.build_c_tracker(cfg.D_MAX, cfg.K)
 model.backbone.freeze()  # needs to be done after state dict loaded
 
 ### anchor setup
+prediction_map_stride = 16
 anchors = build_anchors(
-    prediction_map_hw, cfg.ANCHOR_SCALE_FACTORS, cfg.ANCHOR_ASPECT_RATIOS
+    (x // prediction_map_stride for x in cfg.INPUT_SHAPE),
+    cfg.ANCHOR_SCALE_FACTORS,
+    cfg.ANCHOR_ASPECT_RATIOS
 )
 
 ### data setup

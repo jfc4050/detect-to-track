@@ -50,24 +50,32 @@ class DetectTrackModule(Module):
     def build_backbone(
             self,
             depth: int,
-            zero_init_residual: bool = True,
-            first_trainable_layer: int = 3
+            zero_init_residual: bool = False,
+            first_trainable_stage: int = 3
     ) -> None:
         self.backbone = resnet(
             depth,
             zero_init_residual=zero_init_residual,
-            first_trainable_layer=first_trainable_layer,
-            pretrained=False
+            first_trainable_stage=first_trainable_stage,
+            pretrained=True
         )
 
-    def build_rpn(self, in_channels: int, n_anchors: int) -> None:
-        self.rpn = RPN(in_channels, n_anchors)
+    def build_rpn(self, n_anchors: int) -> None:
+        if self.backbone is None:
+            raise ValueError('build backbone first')
+        self.rpn = RPN(self.backbone.stage4.out_channels, n_anchors)
 
-    def build_rcnn(self, in_channels: int, n_classes: int, k: int) -> None:
-        self.rcnn = RFCN(in_channels, n_classes, k)
+    def build_rcnn(self, n_classes: int, k: int) -> None:
+        if self.backbone is None:
+            raise ValueError('build backbone first')
+        self.rcnn = RFCN(self.backbone.stage5.out_channels, n_classes, k)
 
-    def build_c_tracker(self, d_max: int, r_hw: int, reg_channels: int) -> None:
-        self.c_tracker = CorrelationTracker(d_max, r_hw, reg_channels)
+    def build_c_tracker(self, d_max: int, r_hw: int) -> None:
+        if self.rpn is None:
+            raise ValueError('build rpn first')
+        self.c_tracker = CorrelationTracker(
+            d_max, r_hw, self.rpn.conv.out_channels
+        )
 
     def forward(self):
         raise AttributeError(

@@ -52,8 +52,13 @@ class RFCN(nn.Module):
     """
     def __init__(self, in_channels: int, n_classes: int, k: int) -> None:
         super().__init__()
-        self.cls_head = _RFCNHead(in_channels, n_classes + 1, k)
-        self.reg_head = _RFCNHead(in_channels, 4, k)
+        self.channel_reduce = nn.Conv2d(
+            in_channels, 512, kernel_size=3, dilation=6, padding=6
+        )
+        self.cls_head = _RFCNHead(512, n_classes + 1, k)
+        self.reg_head = _RFCNHead(512, 4, k)
+
+        self.relu = nn.ReLU(inplace=True)
         self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x: Tensor, regions: Tensor) -> Tuple[Tensor, Tensor]:
@@ -66,9 +71,11 @@ class RFCN(nn.Module):
             c_hat: (|R|, n_classes) region classification scores.
             b_hat: (|R|, 4) object bounding box offsets from regions.
         """
-        c_hat = self.cls_head(x, regions)
+        x = self.relu(self.channel_reduce(x)).squeeze(0)  # (512, H, W)
+
+        c_hat = self.cls_head(x, regions)  # (|R|, n_classes)
         c_hat = self.softmax(c_hat)
 
-        b_hat = self.reg_head(x, regions)
+        b_hat = self.reg_head(x, regions)  # (|R|, 4)
 
         return c_hat, b_hat

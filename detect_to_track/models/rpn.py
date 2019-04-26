@@ -16,8 +16,8 @@ class RPN(nn.Module):
     def __init__(self, in_channels: int, n_anchors: int) -> None:
         super().__init__()
         self.conv = nn.Conv2d(in_channels, 512, kernel_size=3, padding=1)
-        self.cls_fc = nn.Conv2d(in_channels, 2*n_anchors, kernel_size=1)
-        self.reg_fc = nn.Conv2d(in_channels, 4*n_anchors, kernel_size=1)
+        self.cls_fc = nn.Conv2d(512, 2*n_anchors, kernel_size=1)
+        self.reg_fc = nn.Conv2d(512, 4*n_anchors, kernel_size=1)
 
     @staticmethod
     def _flatten_outputs(x: Tensor, targets_p_anchor: int) -> Tensor:
@@ -35,9 +35,9 @@ class RPN(nn.Module):
             x: (|B|, C, H, W) feature map.
 
         Returns:
-            x: (|B|, C', H', W') regression features.
             c_hat: (|B|, |A|, 2) anchorwise class score (object and not object).
             b_hat: (|B|, |A|, 4) anchorwise bounding box offsets.
+            x: (|B|, C', H', W') regression features.
         """
         x = relu(self.conv(x))  # (|B|, C', H', W')
         o_hat = self.cls_fc(x)  # (|B|, 2*a, H', W'), a = anchors per cell.
@@ -48,4 +48,4 @@ class RPN(nn.Module):
 
         o_hat = softmax(o_hat, dim=2)  # object vs not object
 
-        return x, o_hat, b_hat
+        return o_hat, b_hat, x
