@@ -1,4 +1,4 @@
-"""datamanagers for imagenet"""
+"""dataset management for imagenet."""
 
 from pathlib import Path
 from os import PathLike
@@ -10,11 +10,11 @@ from PIL import Image
 from scipy.stats import dlaplace, binom
 from ml_utils.data.pascal import parse_pascal_xmlfile, PascalObjectLabel
 
-from .datamanager import DataManager
+from .data_management import DataSampler, DataManager
 from .instances import ObjectLabel, RawImageInstance, ImageInstance
 
 
-class VIDTrnSampler(object):
+class VIDTrnSampler(DataSampler):
     """only samples from VID training set, and allows variable values of tau."""
     def __init__(self, data_root: PathLike, a: float = 0.8) -> None:
         self.label_root = Path(data_root, 'Annotations', 'VID', 'train')
@@ -76,7 +76,7 @@ class VIDTrnSampler(object):
         return instances
 
 
-class DETSampler(object):
+class DETSampler(DataSampler):
     """samples from DET train + val. Instances containing classes that are not
     part of the VID dataset are ignored."""
     def __init__(self, data_root: PathLike) -> None:
@@ -134,7 +134,7 @@ class DETSampler(object):
         return instance
 
 
-class ImagenetTrnManager(DataManager):
+class ImagenetTrnSampler(DataSampler):
     """samples from VID training set and entire DET dataset"""
     def __init__(self, data_root: PathLike, p_det: float = 0.5):
         self._det_sampler = DETSampler(data_root)
@@ -142,19 +142,16 @@ class ImagenetTrnManager(DataManager):
 
         self.p_det = p_det
 
-    def __getitem__(self, i: int) -> Tuple[ImageInstance, ImageInstance]:
+    def sample(self) -> Tuple[ImageInstance, ImageInstance]:
         """sample from DET with probability p_det, or VID with probability
         1 - p_det.
         If sampling from DET use the same image, pretending that they are
         adjacent frames in a sequence.
 
-        Args:
-            i: not used.
-
         Returns:
             instance: pair of adjacent frames from a sequence along with labels.
         """
-        sample_det = binom.rvs(1, self.p_det)
+        sample_det = binom.rvs(1, self.p_det)  # binomial distribution
 
         if sample_det:
             instance = self._det_sampler.sample()
@@ -178,9 +175,6 @@ class ImagenetTrnManager(DataManager):
             instance = self._vid_sampler.sample()
 
         return instance
-
-    def __len__(self):
-        raise ValueError('infinite')
 
 
 class ImagenetValManager(DataManager):

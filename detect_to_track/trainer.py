@@ -1,16 +1,18 @@
 """handles joint training of entire system"""
 
 import math
+from pathlib import Path
 from typing import Tuple, Sequence
 
 import torch
 from torch.nn.parallel import DataParallel
-from torch.utils.data import Dataset, RandomSampler, BatchSampler, random_split
+from torch.utils.data import BatchSampler
 from torch.optim import SGD
 import numpy as np
 from ml_utils.prediction_filtering import PredictionFilterPipeline
 
 from .data import ImageInstance
+from .data.data_management import DataSampler, DataManager
 from .data.encoding import (
     AnchorEncoder,
     RegionEncoder,
@@ -23,7 +25,6 @@ from .utils import (
     DTLoss,
     tensor_to_ndarray,
     make_input_transform,
-    get_subset_lengths
 )
 
 
@@ -36,9 +37,9 @@ class DetectTrackTrainer:
 
     Args:
         model:
-        trn_set: training set.
-        val_set: validation set.
-        split_size: number of training examples to train on before
+        trn_sampler: training set sampler.
+        val_manager: validation set manager.
+        trn_sample_size: number of training examples to train on before
             validating and reporting.
         batch_size: minibatch size.
         net_input_hw: height and width of network input tensor.
@@ -53,13 +54,14 @@ class DetectTrackTrainer:
             gradients are backpropagated from dot(loss_coefs, losses)
         sgd_kwargs: parameters for stochastic gradient descent.
         patience:
+        output_dir:
     """
     def __init__(
             self,
             model: DetectTrackModule,
-            trn_set: Dataset,
-            val_set: Dataset,
-            split_size: int,
+            trn_sampler: DataSampler,
+            val_manager: DataManager,
+            trn_sample_size: int,
             batch_size: int,
             net_input_hw: int,
             anchors: np.ndarray,
@@ -70,7 +72,8 @@ class DetectTrackTrainer:
             gamma: float,
             loss_coefs: Sequence[float],
             sgd_kwargs: dict,
-            patience: int
+            patience: int,
+            output_dir: str = 'output'
     ) -> None:
         ### models
         self._im_to_x = make_input_transform(net_input_hw)
@@ -79,10 +82,10 @@ class DetectTrackTrainer:
         self.model = model.cuda()
 
         ### datasets
-        self.trn_set = trn_set
-        self.val_set = val_set
+        self.trn_sampler = trn_sampler
+        self.val_loader = BatchSampler(val_manager, batch_size, False)
+        self.trn_sample_size = trn_sample_size
         self.batch_size = batch_size
-        self._subset_lens = get_subset_lengths(len(self.trn_set), split_size)
 
         ### ground-truth label encoding
         self._anchor_encoder = AnchorEncoder(
@@ -91,17 +94,17 @@ class DetectTrackTrainer:
         self._region_encoder = RegionEncoder(encoder_iou_thresh)
         self._region_filter = region_filter  # filters rois before rcnn
 
-        ### loss functions
+        ### loss
         self._rpn_loss_func = RPNLoss(alpha, gamma)
         self._rcnn_loss_func = RCNNLoss(alpha, gamma)
         self._track_loss_func = TrackLoss()
         self._loss_coefs = torch.as_tensor(loss_coefs).cuda()
 
         ### optimizers
-        self._loss_coefs = loss_coefs
         self._optim = SGD(self.model.parameters(), **sgd_kwargs)
 
         self.patience = patience
+        self.output_dir = Path(output_dir)
 
         ### state
         self.n_iters = 0
@@ -215,6 +218,7 @@ class DetectTrackTrainer:
             fm_pyr0, fm_pyr1, fm_reg0, fm_reg1, track_rois
         )  # (|R0 n R1|, 4)
         # CT loss.
+        t_star = torch.as_tensor(t_star).cuda()
         t_loss = self._track_loss_func(t_hat, t_star)
 
         dt_loss = DTLoss(
@@ -234,20 +238,19 @@ class DetectTrackTrainer:
         """compute averaged loss for a single minibatch"""
         minibatch_loss = DTLoss()
         for instance in minibatch:
-            instance_loss = self._forward_loss(instance)
-            minibatch_loss += instance_loss
+            minibatch_loss += self._forward_loss(instance)
 
         return minibatch_loss
 
-    def run_on_subset(self, subset: Dataset) -> Tuple[DTLoss, DTLoss]:
+    def step(self) -> Tuple[DTLoss, DTLoss]:
         """train on subset, validate, and report."""
-        trn_sampler = BatchSampler(RandomSampler(subset), self.batch_size, False)
-        val_sampler = BatchSampler(RandomSampler(self.val_set), self.batch_size, False)
-
         ### train
         self.model.train()
         trn_loss = DTLoss()
-        for minibatch in trn_sampler:
+        for _ in range(self.trn_sample_size // self.batch_size):
+            minibatch = [
+                self.trn_sampler.sample() for _ in range(self.batch_size)
+            ]
             minibatch_loss = self._minibatch_loss(minibatch)
 
             self._optim.zero_grad()
@@ -261,7 +264,7 @@ class DetectTrackTrainer:
         self.model.eval()
         val_loss = DTLoss()
         with torch.no_grad():
-            for minibatch in val_sampler:
+            for minibatch in self.val_loader:
                 minibatch_loss = self._minibatch_loss(minibatch)
 
                 val_loss += minibatch_loss
@@ -271,24 +274,25 @@ class DetectTrackTrainer:
     def train(self, max_iters: int = math.inf) -> None:
         """iterate until stopping condition is satisfied."""
         while True:
-            for trn_subset in random_split(self.trn_set, self._subset_lens):
-                ### train on subset
-                trn_loss, val_loss = self.run_on_subset(trn_subset)
+            trn_loss, val_loss = self.step()
 
-                ### check for improvement
-                scalar_val_loss = float(val_loss.to_scalar(self._loss_coefs))
-                if scalar_val_loss < self.best_val_loss:
-                    self.best_val_loss = scalar_val_loss
-                    self.iters_no_improvement = 0
-                else:
-                    self.iters_no_improvement += 1
+            scalar_val_loss = float(val_loss.to_scalar(self._loss_coefs))
+            if scalar_val_loss < self.best_val_loss:
+                self.best_val_loss = scalar_val_loss
+                self.iters_no_improvement = 0
+                torch.save(
+                    self.model.state_dict(),
+                    Path(self.output_dir, 'weights.pt')
+                )
+            else:
+                self.iters_no_improvement += 1
 
-                ### report
-                print(' '.join([str(trn_loss), str(val_loss)]))
+            ### report
+            print(' '.join([str(trn_loss), str(val_loss)]))
 
-                ### check if any stopping conditions have been satisfied
-                if any([
-                        self.n_iters > max_iters,
-                        self.iters_no_improvement > self.patience
-                ]):
-                    return
+            ### check if any stopping conditions have been satisfied
+            if any([
+                    self.n_iters > max_iters,
+                    self.iters_no_improvement > self.patience
+            ]):
+                return

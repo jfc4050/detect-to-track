@@ -11,7 +11,7 @@ from ml_utils.prediction_filtering import (
 )
 
 from detect_to_track.models import DetectTrackModule
-from detect_to_track.data.imagenet import ImagenetTrnManager, ImagenetValManager
+from detect_to_track.data.imagenet import ImagenetTrnSampler, ImagenetValManager
 from detect_to_track.trainer import DetectTrackTrainer
 from detect_to_track.utils import build_anchors
 
@@ -42,8 +42,8 @@ anchors = build_anchors(
 )
 
 ### data setup
-trn_set = ImagenetTrnManager(cfg.DATA_ROOT, cfg.P_DET)
-val_set = ImagenetValManager(cfg.DATA_ROOT, cfg.VAL_SIZE)
+trn_sampler = ImagenetTrnSampler(cfg.DATA_ROOT, cfg.P_DET)
+val_manager = ImagenetValManager(cfg.DATA_ROOT, cfg.VAL_SIZE)
 
 ### encoder setup
 region_filter = PredictionFilterPipeline(
@@ -53,7 +53,7 @@ region_filter = PredictionFilterPipeline(
 
 trainer = DetectTrackTrainer(
     model,
-    trn_set, val_set, cfg.SPLIT_SIZE, cfg.BATCH_SIZE,
+    trn_sampler, val_manager, cfg.SPLIT_SIZE, cfg.BATCH_SIZE,
     cfg.INPUT_SHAPE,
     anchors,
     cfg.ENCODER_IOU_THRESH, cfg.ENCODER_IOU_MARGIN,
