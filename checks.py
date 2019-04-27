@@ -23,7 +23,12 @@ def check_sampler():
 def check_anchors():
     from detect_to_track.utils import build_anchors
 
-    anchors = build_anchors((5, 5), [1, 2, 3], [1, 2])
+    anchors = build_anchors(
+        fm_shape=(2, 2),
+        anchor_areas=[1, 2, 3],
+        aspect_ratios=[1, 2],
+        flatten=False
+    )
     print(anchors)
 
 

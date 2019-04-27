@@ -111,7 +111,7 @@ def build_anchors(
         aspect_ratios: anchor aspect ratios (h/w).
 
     Returns:
-        anchors: (H * W * |SF x AR|, 4) bounding box priors.
+        anchors: (H * W * |A x R|, 4) bounding box priors.
     """
     if isinstance(fm_shape, int):
         fm_shape = (fm_shape, fm_shape)
@@ -123,26 +123,26 @@ def build_anchors(
             h = np.sqrt(anchor_area * aspect_ratio)
             w = anchor_area / h
             anchor_dims[i, j, :] = [h, w]
-    anchor_dims = anchor_dims.reshape(-1, 2)  # (|SF x AR|, 2)
+    anchor_dims = anchor_dims.reshape(-1, 2)  # (|A x R|, 2)
 
     ### get centered anchor coordinates.
     fm_h, fm_w = fm_shape
     iv, jv = np.meshgrid(
-        np.linspace(0, 1, fm_h + 2)[1:-1],
-        np.linspace(0, 1, fm_w + 2)[1:-1],
+        np.linspace(0, 1, fm_h, endpoint=False) + 1 / fm_h / 2,
+        np.linspace(0, 1, fm_w, endpoint=False) + 1 / fm_w / 2,
         indexing='ij'
     )  # 2*(H, W) grid of center i, j values for each feature map cell
     ij_grid = np.stack([iv, jv], axis=-1)  # (H, W, 2)
 
     ### expand and concatenate coordinates and shapes.
-    # expand ij_grid and hw_grid: (H, W, |SF x AR|, 2)
+    # expand ij_grid and hw_grid: (H, W, |A x R|, 2)
     target_shape = (fm_h, fm_w, len(anchor_dims), 2)
     ij_grid = np.broadcast_to(ij_grid[:, :, None, :], target_shape)
     hw_grid = np.broadcast_to(anchor_dims[None, None, :, :], target_shape)
-    anchors = np.concatenate([ij_grid, hw_grid], 3)  # (H, W, |SF x AR|, 4)
+    anchors = np.concatenate([ij_grid, hw_grid], 3)  # (H, W, |A x R|, 4)
 
     if flatten:
-        anchors = anchors.reshape(-1, 4)  # (H * W * |SF x AR|, 4)
+        anchors = anchors.reshape(-1, 4)  # (H * W * |A x R|, 4)
 
     anchors.flags.writeable = False
 
