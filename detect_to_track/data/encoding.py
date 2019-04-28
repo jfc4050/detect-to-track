@@ -68,6 +68,7 @@ class AnchorEncoder(FRCNNLabelEncoder):
             b_star: (|A|, 4) anchorwise offset from assigned bounding box.
         """
         ### unzip labels
+        classes = np.array([label.class_id for label in labels])  # (|O|,)
         boxes = np.array([label.box for label in labels])  # (|O|, 4)
 
         ### assign ground-truth boxes anchorwise
@@ -84,9 +85,11 @@ class AnchorEncoder(FRCNNLabelEncoder):
         ### c_star encoding
         is_best_anchor = np.zeros(len(self.anchors))  # (|A|,)
         is_best_anchor[ious.argmax(0)] = 1
-        c_star = np.logical_or(
+        pos_mask = np.logical_or(
             anchwise_best_iou > self._iou_thresh, is_best_anchor
         )
+        c_star = classes[anchwise_best_gt_ind]
+        c_star = pos_mask * classes[anchwise_best_gt_ind]
 
         ### b_star encoding
         b_star = frcnn_box_encode(
@@ -134,8 +137,9 @@ class RegionEncoder(FRCNNLabelEncoder):
         regionwise_best_iou = ious.max(1)  # (|A|,)
 
         ### c_star encoding
+        pos_mask = regionwise_best_iou < self._iou_thresh  # (|A|,)
         c_star = classes[regionwise_best_gt]  # (|A|,)
-        c_star[regionwise_best_iou < self._iou_thresh] = 0
+        c_star = pos_mask * c_star  # (|A|,)
 
         ### b_star encoding
         b_star = frcnn_box_encode(
