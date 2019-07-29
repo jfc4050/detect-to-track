@@ -10,8 +10,9 @@ from PIL import Image
 from scipy.stats import dlaplace, binom
 from ml_utils.data.pascal import parse_pascal_xmlfile, PascalObjectLabel
 
-from .data_management import DataSampler, DataManager
-from .instances import ObjectLabel, RawImageInstance, ImageInstance
+from .types import (
+    DataSampler, DataManager, ObjectLabel, RawImageInstance, ImageInstance
+)
 
 
 class VIDTrnSampler(DataSampler):

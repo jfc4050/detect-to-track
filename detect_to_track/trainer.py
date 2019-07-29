@@ -11,8 +11,7 @@ from torch.optim import SGD
 import numpy as np
 from ml_utils.prediction_filtering import PredictionFilterPipeline
 
-from .data import ImageInstance
-from .data.data_management import DataSampler, DataManager
+from .data.types import DataSampler, DataManager, ImageInstance
 from .data.encoding import AnchorEncoder, RegionEncoder, frcnn_box_decode, track_encode
 from .loss import RPNLoss, RCNNLoss, TrackLoss
 from .models import DetectTrackModule, ResNetFeatures

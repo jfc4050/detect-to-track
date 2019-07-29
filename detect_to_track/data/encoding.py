@@ -6,7 +6,7 @@ from typing import Tuple, Sequence
 import numpy as np
 from ml_utils.bbox_utils import ijhw_to_ijij, compute_ious
 
-from . import ObjectLabel
+from .types import ObjectLabel
 
 
 class FRCNNLabelEncoder(abc.ABC):
