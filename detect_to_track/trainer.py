@@ -2,6 +2,7 @@
 
 import math
 from pathlib import Path
+from collections import OrderedDict
 from typing import Tuple, Sequence
 
 import torch
@@ -14,7 +15,7 @@ from ml_utils.prediction_filtering import PredictionFilterPipeline
 from .data.types import DataSampler, DataManager, ImageInstance
 from .data.encoding import AnchorEncoder, RegionEncoder, frcnn_box_decode, track_encode
 from .loss import RPNLoss, RCNNLoss, TrackLoss
-from .models import DetectTrackModule, ResNetFeatures
+from .models import DetectTrackModule
 from .utils import DTLoss, tensor_to_ndarray, make_input_transform
 
 
@@ -135,7 +136,7 @@ class DetectTrackTrainer:
         c_star_rpn = np.stack([c0_star_rpn, c1_star_rpn])  # (2, |A|)
         b_star_rpn = np.stack([b0_star_rpn, b1_star_rpn])  # (2, |A|, 4)
         # RPN predictions.
-        o_hat_rpn, b_hat_rpn, fm_reg = self.model.rpn(fmaps.c4)
+        o_hat_rpn, b_hat_rpn, fm_reg = self.model.rpn(fmaps["c4"])
         # RPN loss.
         lw_rpn = torch.as_tensor(lw_rpn).cuda()
         c_star_rpn = torch.as_tensor(c_star_rpn).cuda()
@@ -175,7 +176,7 @@ class DetectTrackTrainer:
         c_star_rcnn = np.concatenate([c0_star_rcnn, c1_star_rcnn])  # (|R0 u R1|,)
         b_star_rcnn = np.concatenate([b0_star_rcnn, b1_star_rcnn])  # (|R0 u R1|, 4)
         # RCNN predictions.
-        c5_0, c5_1 = fmaps.c5  # 2*(C', H', W')
+        c5_0, c5_1 = fmaps["c5"]  # 2*(C', H', W')
         regions_0 = torch.as_tensor(regions_0).cuda()  # (|R0|, 4)
         regions_1 = torch.as_tensor(regions_1).cuda()  # (|R1|, 4)
         c0_hat_rcnn, b0_hat_rcnn = self.model.rcnn(c5_0, regions_0)  # (|R0|, ...)
@@ -198,11 +199,11 @@ class DetectTrackTrainer:
         )  # 2 * (|R0 n R1|, 4)
         # CT predictions.
         # start by unzipping features from each time step
-        c3_0, c3_1 = fmaps.c3  # 2 * (C, H, W)
-        c4_0, c4_1 = fmaps.c4  # 2 * (C, H', W')
-        c5_0, c5_1 = fmaps.c5  # 2 * (C, H', W')
-        fm_pyr0 = ResNetFeatures(c3=c3_0, c4=c4_0, c5=c5_0)
-        fm_pyr1 = ResNetFeatures(c3=c3_1, c4=c4_1, c5=c5_1)
+        c3_0, c3_1 = fmaps["c3"]  # 2 * (C, H, W)
+        c4_0, c4_1 = fmaps["c4"]  # 2 * (C, H', W')
+        c5_0, c5_1 = fmaps["c5"]  # 2 * (C, H', W')
+        fm_pyr0 = OrderedDict(c3=c3_0, c4=c4_0, c5=c5_0)
+        fm_pyr1 = OrderedDict(c3=c3_1, c4=c4_1, c5=c5_1)
         fm_reg0, fm_reg1 = fm_reg  # 2 * (Cr, Hr, Wr) RPN feature maps
         track_rois = torch.as_tensor(track_rois).cuda()  # (|R0 n R1|, 4)
         t_hat = self.model.c_tracker(

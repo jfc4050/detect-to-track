@@ -4,7 +4,7 @@ from typing import Optional
 
 from torch.nn import Module
 
-from .resnet import resnet
+from .resnet import resnet_backbone
 from .rpn import RPN
 from .rfcn import RFCN
 from .correlation_tracker import CorrelationTracker
@@ -49,16 +49,10 @@ class DetectTrackModule(Module):
         self.c_tracker = c_tracker
 
     def build_backbone(
-        self,
-        depth: int,
-        zero_init_residual: bool = False,
-        first_trainable_stage: int = 3,
+        self, backbone_arch: str, first_trainable_stage: int = 3
     ) -> None:
-        self.backbone = resnet(
-            depth,
-            zero_init_residual=zero_init_residual,
-            first_trainable_stage=first_trainable_stage,
-            pretrained=True,
+        self.backbone = resnet_backbone(
+            backbone_arch, first_trainable_stage=first_trainable_stage
         )
 
     def build_rpn(self, n_anchors: int) -> None:

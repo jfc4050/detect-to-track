@@ -11,7 +11,11 @@ from scipy.stats import dlaplace, binom
 from ml_utils.data.pascal import parse_pascal_xmlfile, PascalObjectLabel
 
 from .types import (
-    DataSampler, DataManager, ObjectLabel, RawImageInstance, ImageInstance
+    DataSampler,
+    DataManager,
+    ObjectLabel,
+    RawImageInstance,
+    ImageInstance,
 )
 
 

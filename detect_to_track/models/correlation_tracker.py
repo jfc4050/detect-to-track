@@ -1,12 +1,13 @@
 """correlation based tracking module"""
 
+from typing import OrderedDict
+
 import torch
 from torch import Tensor
 from torch import nn
 
 from . import PointwiseCorrelation
 from . import ROIPool
-from . import ResNetFeatures
 
 
 class CorrelationTracker(nn.Module):
@@ -34,8 +35,8 @@ class CorrelationTracker(nn.Module):
 
     def forward(
         self,
-        fm_pyr_0: ResNetFeatures,
-        fm_pyr_1: ResNetFeatures,
+        fm_pyr_0: OrderedDict,
+        fm_pyr_1: OrderedDict,
         reg_fm_0: Tensor,
         reg_fm_1: Tensor,
         rois: Tensor,
@@ -53,12 +54,9 @@ class CorrelationTracker(nn.Module):
         """
         ### preprocess inputs
         # insert batch dimensions: (C, H, W) -> (1, C, H, W)
-        c3_0, c4_0, c5_0 = [
-            fm[None, :, :, :] for fm in [fm_pyr_0.c3, fm_pyr_0.c4, fm_pyr_0.c5]
-        ]
-        c3_1, c4_1, c5_1 = [
-            fm[None, :, :, :] for fm in [fm_pyr_1.c3, fm_pyr_1.c4, fm_pyr_1.c5]
-        ]
+        fm_keys = ["c3", "c4", "c5"]
+        c3_0, c4_0, c5_0 = [fm_pyr_0[key][None, :, :, :] for key in fm_keys]
+        c3_1, c4_1, c5_1 = [fm_pyr_1[key][None, :, :, :] for key in fm_keys]
         # resize c3 (c3 has half the stride of c4 and c5)
         c3_0 = nn.functional.interpolate(c3_0, scale_factor=1 / 2)
         c3_1 = nn.functional.interpolate(c3_1, scale_factor=1 / 2)

@@ -4,7 +4,7 @@ from .ps_roipool.ps_roipool import PSROIPool
 from .pointwise_correlation.pointwise_correlation import PointwiseCorrelation
 from .roipool.roipool import ROIPool
 
-from .resnet import ResNetFeatures, resnet
+from .resnet import resnet_backbone
 from .rpn import RPN
 from .rfcn import RFCN
 from .correlation_tracker import CorrelationTracker

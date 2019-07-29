@@ -23,7 +23,7 @@ cfg = SimpleNamespace(**yaml.load(open(args.cfg)))
 
 ### model setup
 model = DetectTrackModule()
-model.build_backbone(cfg.DEPTH)
+model.build_backbone(cfg.BACKBONE_ARCH, cfg.FIRST_TRAINABLE_STAGE)
 model.build_rpn(len(cfg.ANCHOR_SCALE_FACTORS) * len(cfg.ANCHOR_ASPECT_RATIOS))
 model.build_rcnn(cfg.N_CLASSES, cfg.K)
 model.build_c_tracker(cfg.D_MAX, cfg.K)

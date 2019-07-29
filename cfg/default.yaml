@@ -30,7 +30,8 @@ SGD_KWARGS:
 
 PATIENCE: 20  # number of iterations with no improvement before quitting
 
-DEPTH: 50  # resnet
+BACKBONE_ARCH: resnet50
+FIRST_TRAINABLE_STAGE: 3
 INPUT_SHAPE: [608, 1200]
 
 D_MAX: 8  # max displacement for pointwise correlation
