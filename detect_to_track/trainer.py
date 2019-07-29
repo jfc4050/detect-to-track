@@ -233,9 +233,7 @@ class DetectTrackTrainer:
 
         return minibatch_loss
 
-    def step(self) -> Tuple[DTLoss, DTLoss]:
-        """train on subset, validate, and report."""
-        ### train
+    def train(self) -> DTLoss:
         self.model.train()
         trn_loss = DTLoss()
         for _ in range(self.trn_sample_size // self.batch_size):
@@ -249,7 +247,10 @@ class DetectTrackTrainer:
             trn_loss += minibatch_loss
             self.n_iters += len(minibatch)
 
-        ### validate
+        return trn_loss
+
+    @torch.no_grad()
+    def validate(self) -> DTLoss:
         self.model.eval()
         val_loss = DTLoss()
         with torch.no_grad():
@@ -258,26 +259,27 @@ class DetectTrackTrainer:
 
                 val_loss += minibatch_loss
 
-        return trn_loss, val_loss
+        return val_loss
 
-    def train(self, max_iters: int = math.inf) -> None:
-        """iterate until stopping condition is satisfied."""
-        while True:
-            trn_loss, val_loss = self.step()
+    def step(self) -> None:
+        """train on subset, validate, and report."""
+        trn_loss = self.train()
+        val_loss = self.validate()
 
-            scalar_val_loss = float(val_loss.to_scalar(self._loss_coefs))
-            if scalar_val_loss < self.best_val_loss:
-                self.best_val_loss = scalar_val_loss
-                self.iters_no_improvement = 0
-                torch.save(self.model.state_dict(), Path(self.output_dir, "weights.pt"))
-            else:
-                self.iters_no_improvement += 1
+        scalar_val_loss = float(val_loss.to_scalar(self._loss_coefs))
+        if scalar_val_loss < self.best_val_loss:
+            self.best_val_loss = scalar_val_loss
+            self.iters_no_improvement = 0
+            torch.save(self.model.state_dict(), Path(self.output_dir, "weights.pt"))
+        else:
+            self.iters_no_improvement += 1
 
-            ### report
-            print(" ".join([str(trn_loss), str(val_loss)]))
+        ### report
+        print(" ".join([str(trn_loss), str(val_loss)]))
 
-            ### check if any stopping conditions have been satisfied
-            if any(
-                [self.n_iters > max_iters, self.iters_no_improvement > self.patience]
-            ):
-                return
+    def run(self, max_iters: int = math.inf) -> None:
+        """iterate until a stopping condition is satisfied."""
+        while not (
+            self.iters_no_improvement > self.patience or self.n_iters > max_iters
+        ):
+            self.step()
