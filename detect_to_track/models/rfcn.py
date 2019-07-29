@@ -16,9 +16,10 @@ class _RFCNHead(nn.Module):
                    if regressor - 4 (ijhw).
         k: height and width of spatial grid. see paper.
     """
+
     def __init__(self, in_channels: int, n_targets: int, k: int) -> None:
         super().__init__()
-        self.sm_conv = nn.Conv2d(in_channels, n_targets*k**2, kernel_size=1)
+        self.sm_conv = nn.Conv2d(in_channels, n_targets * k ** 2, kernel_size=1)
         self.roi_pool = PSROIPool(n_targets, k)
 
         self.n_targets = n_targets
@@ -50,6 +51,7 @@ class RFCN(nn.Module):
         n_classes: number of non-background clases.
         k: height and width of spatial grid. see paper.
     """
+
     def __init__(self, in_channels: int, n_classes: int, k: int) -> None:
         super().__init__()
         self.channel_reduce = nn.Conv2d(

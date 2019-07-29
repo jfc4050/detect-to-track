@@ -13,19 +13,10 @@ from ml_utils.prediction_filtering import PredictionFilterPipeline
 
 from .data import ImageInstance
 from .data.data_management import DataSampler, DataManager
-from .data.encoding import (
-    AnchorEncoder,
-    RegionEncoder,
-    frcnn_box_decode,
-    track_encode
-)
+from .data.encoding import AnchorEncoder, RegionEncoder, frcnn_box_decode, track_encode
 from .loss import RPNLoss, RCNNLoss, TrackLoss
 from .models import DetectTrackModule, ResNetFeatures
-from .utils import (
-    DTLoss,
-    tensor_to_ndarray,
-    make_input_transform,
-)
+from .utils import DTLoss, tensor_to_ndarray, make_input_transform
 
 
 class DetectTrackTrainer:
@@ -56,24 +47,25 @@ class DetectTrackTrainer:
         patience:
         output_dir:
     """
+
     def __init__(
-            self,
-            model: DetectTrackModule,
-            trn_sampler: DataSampler,
-            val_manager: DataManager,
-            trn_sample_size: int,
-            batch_size: int,
-            net_input_hw: int,
-            anchors: np.ndarray,
-            encoder_iou_thresh: float,
-            encoder_iou_margin: float,
-            region_filter: PredictionFilterPipeline,
-            alpha: float,
-            gamma: float,
-            loss_coefs: Sequence[float],
-            sgd_kwargs: dict,
-            patience: int,
-            output_dir: str = 'output'
+        self,
+        model: DetectTrackModule,
+        trn_sampler: DataSampler,
+        val_manager: DataManager,
+        trn_sample_size: int,
+        batch_size: int,
+        net_input_hw: int,
+        anchors: np.ndarray,
+        encoder_iou_thresh: float,
+        encoder_iou_margin: float,
+        region_filter: PredictionFilterPipeline,
+        alpha: float,
+        gamma: float,
+        loss_coefs: Sequence[float],
+        sgd_kwargs: dict,
+        patience: int,
+        output_dir: str = "output",
     ) -> None:
         ### models
         self._im_to_x = make_input_transform(net_input_hw)
@@ -108,12 +100,10 @@ class DetectTrackTrainer:
 
         ### state
         self.n_iters = 0
-        self.best_val_loss = float('inf')
+        self.best_val_loss = float("inf")
         self.iters_no_improvement = 0
 
-    def _forward_loss(
-            self, instance: Tuple[ImageInstance, ImageInstance]
-    ) -> DTLoss:
+    def _forward_loss(self, instance: Tuple[ImageInstance, ImageInstance]) -> DTLoss:
         """compute joint loss for a single instance.
 
         Args:
@@ -166,7 +156,7 @@ class DetectTrackTrainer:
         regions_0, regions_1 = [
             frcnn_box_decode(
                 self._anchor_encoder.anchors,  # (|A|, 4)
-                tensor_to_ndarray(offsets)  # (|A|, 4)
+                tensor_to_ndarray(offsets),  # (|A|, 4)
             )  # (|A|, 4)
             for offsets in b_hat_rpn  # (2, |A|, 4)
         ]  # 2*(|A|, 4)
@@ -204,7 +194,9 @@ class DetectTrackTrainer:
         ###   - inputs are feature maps from each time step
         ###   - supervision from ground-truth labels from each time step
         # CT label encoding.
-        track_rois, t_star = track_encode(inst_0.labels, inst_1.labels)  # 2 * (|R0 n R1|, 4)
+        track_rois, t_star = track_encode(
+            inst_0.labels, inst_1.labels
+        )  # 2 * (|R0 n R1|, 4)
         # CT predictions.
         # start by unzipping features from each time step
         c3_0, c3_1 = fmaps.c3  # 2 * (C, H, W)
@@ -226,14 +218,13 @@ class DetectTrackTrainer:
             b_loss_rpn=b_loss_rpn,
             c_loss=c_loss_rcnn,
             b_loss_rcnn=b_loss_rcnn,
-            t_loss=t_loss
+            t_loss=t_loss,
         )
 
         return dt_loss
 
     def _minibatch_loss(
-            self,
-            minibatch: Sequence[Tuple[ImageInstance, ImageInstance]]
+        self, minibatch: Sequence[Tuple[ImageInstance, ImageInstance]]
     ) -> DTLoss:
         """compute averaged loss for a single minibatch"""
         minibatch_loss = DTLoss()
@@ -248,9 +239,7 @@ class DetectTrackTrainer:
         self.model.train()
         trn_loss = DTLoss()
         for _ in range(self.trn_sample_size // self.batch_size):
-            minibatch = [
-                self.trn_sampler.sample() for _ in range(self.batch_size)
-            ]
+            minibatch = [self.trn_sampler.sample() for _ in range(self.batch_size)]
             minibatch_loss = self._minibatch_loss(minibatch)
 
             self._optim.zero_grad()
@@ -280,19 +269,15 @@ class DetectTrackTrainer:
             if scalar_val_loss < self.best_val_loss:
                 self.best_val_loss = scalar_val_loss
                 self.iters_no_improvement = 0
-                torch.save(
-                    self.model.state_dict(),
-                    Path(self.output_dir, 'weights.pt')
-                )
+                torch.save(self.model.state_dict(), Path(self.output_dir, "weights.pt"))
             else:
                 self.iters_no_improvement += 1
 
             ### report
-            print(' '.join([str(trn_loss), str(val_loss)]))
+            print(" ".join([str(trn_loss), str(val_loss)]))
 
             ### check if any stopping conditions have been satisfied
-            if any([
-                    self.n_iters > max_iters,
-                    self.iters_no_improvement > self.patience
-            ]):
+            if any(
+                [self.n_iters > max_iters, self.iters_no_improvement > self.patience]
+            ):
                 return

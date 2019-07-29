@@ -8,12 +8,13 @@ from torch.utils import model_zoo
 from torchvision.models.resnet import model_urls, Bottleneck, ResNet
 
 
-__all__ = ['SRResNet', 'resnet', 'ResNetFeatures']
+__all__ = ["SRResNet", "resnet", "ResNetFeatures"]
 
 
 class ResNetFeatures(NamedTuple):
     """resnet intermediate representations corresponding to convolutional
     blocks 3, 4, and 5"""
+
     c3: Tensor
     c4: Tensor
     c5: Tensor
@@ -28,35 +29,42 @@ class _DilatedBottleneck(Bottleneck):
         stride: see superclass.
         downsample: see superclass.
     """
+
     def __init__(
-            self,
-            inplanes: int,
-            planes: int,
-            stride: int = 1,
-            downsample: Optional[nn.Module] = None
+        self,
+        inplanes: int,
+        planes: int,
+        stride: int = 1,
+        downsample: Optional[nn.Module] = None,
     ):
         super().__init__(inplanes, planes, stride, downsample)
         self.conv2 = nn.Conv2d(  # overwrite
-            planes, planes,
-            kernel_size=3, stride=stride, dilation=2, padding=2, bias=False
+            planes,
+            planes,
+            kernel_size=3,
+            stride=stride,
+            dilation=2,
+            padding=2,
+            bias=False,
         )
 
 
 class SRResNet(ResNet):
     """stride-reduced ResNet base with final convolutional layers replaced
     with dilated convolutions"""
+
     def __init__(
-            self,
-            depth: int,
-            zero_init_residual: bool = False,
-            first_trainable_stage: int = 3
+        self,
+        depth: int,
+        zero_init_residual: bool = False,
+        first_trainable_stage: int = 3,
     ):
         nn.Module.__init__(self)
 
         layers_2, layers_3, layers_4, layers_5 = {
             50: [3, 4, 6, 3],
             101: [3, 4, 23, 3],
-            152: [3, 8, 36, 3]
+            152: [3, 8, 36, 3],
         }[depth]
 
         self.inplanes = 64
@@ -65,7 +73,7 @@ class SRResNet(ResNet):
             nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
         )
         self.stage2 = self._make_layer(Bottleneck, 64, layers_2)
         self.stage3 = self._make_layer(Bottleneck, 128, layers_3, stride=2)
@@ -90,9 +98,7 @@ class SRResNet(ResNet):
         """initialize weights."""
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(
-                    m.weight, mode='fan_out', nonlinearity='relu'
-                )
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -108,7 +114,7 @@ class SRResNet(ResNet):
 
     def _should_freeze_layer(self, layer_name: str) -> bool:
         """given a layer name, return whether or not it should be frozen."""
-        stage_num = int(re.search(r'^stage(\d)', layer_name).group(1))
+        stage_num = int(re.search(r"^stage(\d)", layer_name).group(1))
         should_freeze = stage_num < self.first_trainable_stage
 
         return should_freeze
@@ -140,10 +146,10 @@ class SRResNet(ResNet):
 
 
 def resnet(
-        depth: int,
-        zero_init_residual: bool = True,
-        first_trainable_stage: int = 3,
-        pretrained: bool = True,
+    depth: int,
+    zero_init_residual: bool = True,
+    first_trainable_stage: int = 3,
+    pretrained: bool = True,
 ) -> nn.Module:
     """constructs a resnet<depth> model.
 
@@ -159,27 +165,25 @@ def resnet(
     model = SRResNet(depth, zero_init_residual, first_trainable_stage)
 
     if pretrained:  # download state dict, rename params, then load.
-        raw_state_dict = model_zoo.load_url(model_urls[f'resnet{depth}'])
+        raw_state_dict = model_zoo.load_url(model_urls[f"resnet{depth}"])
 
         state_dict = dict()
         for param_name, param in raw_state_dict.items():
-            if param_name.startswith('conv1'):
-                param_name = re.sub(r'conv1\.', 'stage1.0.', param_name)
-            elif param_name.startswith('bn1'):
-                param_name = re.sub(r'bn1\.', 'stage1.1.', param_name)
-            elif param_name.startswith('relu'):
-                param_name = re.sub(r'relu\.', 'stage1.2.', param_name)
-            elif param_name.startswith('maxpool'):
-                param_name = re.sub(r'maxpool\.', 'stage1.3', param_name)
-            elif param_name.startswith('layer'):
-                layer_num = int(re.search(r'^layer(\d)\.', param_name).group(1))
-                param_name = re.sub(
-                    r'^layer\d\.', f'stage{layer_num+1}.', param_name
-                )
-            elif param_name.startswith(('avgpool', 'fc')):
+            if param_name.startswith("conv1"):
+                param_name = re.sub(r"conv1\.", "stage1.0.", param_name)
+            elif param_name.startswith("bn1"):
+                param_name = re.sub(r"bn1\.", "stage1.1.", param_name)
+            elif param_name.startswith("relu"):
+                param_name = re.sub(r"relu\.", "stage1.2.", param_name)
+            elif param_name.startswith("maxpool"):
+                param_name = re.sub(r"maxpool\.", "stage1.3", param_name)
+            elif param_name.startswith("layer"):
+                layer_num = int(re.search(r"^layer(\d)\.", param_name).group(1))
+                param_name = re.sub(r"^layer\d\.", f"stage{layer_num+1}.", param_name)
+            elif param_name.startswith(("avgpool", "fc")):
                 continue
             else:
-                raise ValueError(f'unrecognized param name {param_name}')
+                raise ValueError(f"unrecognized param name {param_name}")
 
             state_dict[param_name] = param
 

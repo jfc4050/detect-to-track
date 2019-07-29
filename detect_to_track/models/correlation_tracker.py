@@ -20,29 +20,25 @@ class CorrelationTracker(nn.Module):
         reg_channels: RPN feature map channels.
         stride: correlation stride.
     """
+
     def __init__(
-            self,
-            d_max: int,
-            r_hw: int,
-            reg_channels: int,
-            stride: int = 1
+        self, d_max: int, r_hw: int, reg_channels: int, stride: int = 1
     ) -> None:
         super().__init__()
         self.point_corr = PointwiseCorrelation(d_max, stride)
         self.pool = ROIPool(r_hw)
 
         self.reg_fc = nn.Linear(
-            (3*(2*d_max+1)**2 + 2*reg_channels) * r_hw**2,
-            4
+            (3 * (2 * d_max + 1) ** 2 + 2 * reg_channels) * r_hw ** 2, 4
         )
 
     def forward(
-            self,
-            fm_pyr_0: ResNetFeatures,
-            fm_pyr_1: ResNetFeatures,
-            reg_fm_0: Tensor,
-            reg_fm_1: Tensor,
-            rois: Tensor
+        self,
+        fm_pyr_0: ResNetFeatures,
+        fm_pyr_1: ResNetFeatures,
+        reg_fm_0: Tensor,
+        reg_fm_1: Tensor,
+        rois: Tensor,
     ) -> Tensor:
         """
         Args:
@@ -64,8 +60,8 @@ class CorrelationTracker(nn.Module):
             fm[None, :, :, :] for fm in [fm_pyr_1.c3, fm_pyr_1.c4, fm_pyr_1.c5]
         ]
         # resize c3 (c3 has half the stride of c4 and c5)
-        c3_0 = nn.functional.interpolate(c3_0, scale_factor=1/2)
-        c3_1 = nn.functional.interpolate(c3_1, scale_factor=1/2)
+        c3_0 = nn.functional.interpolate(c3_0, scale_factor=1 / 2)
+        c3_1 = nn.functional.interpolate(c3_1, scale_factor=1 / 2)
 
         ### compute correlation features
         corr_feats = [
@@ -74,18 +70,22 @@ class CorrelationTracker(nn.Module):
             for cf in [
                 self.point_corr(c3_0, c3_1),
                 self.point_corr(c4_0, c4_1),
-                self.point_corr(c5_0, c5_1)
+                self.point_corr(c5_0, c5_1),
             ]
         ]
 
-        track_feats = torch.cat([
-            reg_fm_0,  # (Cr, H, W)
-            reg_fm_1,  # (Cr, H, W)
-            *corr_feats,  # 3 * ((2d+1)^2, H, W)
-        ])  # (3*(2d+1)^2 + 2Cr, H, W)
+        track_feats = torch.cat(
+            [
+                reg_fm_0,  # (Cr, H, W)
+                reg_fm_1,  # (Cr, H, W)
+                *corr_feats,  # 3 * ((2d+1)^2, H, W)
+            ]
+        )  # (3*(2d+1)^2 + 2Cr, H, W)
 
         pooled_feats = self.pool(track_feats, rois)  # (|R|, C, rHW, rHW)
-        pooled_feats = pooled_feats.view(pooled_feats.size(0), -1)  # (|R|, roi_features)
+        pooled_feats = pooled_feats.view(
+            pooled_feats.size(0), -1
+        )  # (|R|, roi_features)
 
         t_hat = self.reg_fc(pooled_feats)  # (|R|, 4)
 

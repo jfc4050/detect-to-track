@@ -13,11 +13,12 @@ class RPN(nn.Module):
         in_channels: input feature map channels.
         n_anchors: number of anchors per feature map cell.
     """
+
     def __init__(self, in_channels: int, n_anchors: int) -> None:
         super().__init__()
         self.conv = nn.Conv2d(in_channels, 512, kernel_size=3, padding=1)
-        self.cls_fc = nn.Conv2d(512, 2*n_anchors, kernel_size=1)
-        self.reg_fc = nn.Conv2d(512, 4*n_anchors, kernel_size=1)
+        self.cls_fc = nn.Conv2d(512, 2 * n_anchors, kernel_size=1)
+        self.reg_fc = nn.Conv2d(512, 4 * n_anchors, kernel_size=1)
 
     @staticmethod
     def _flatten_outputs(x: Tensor, targets_p_anchor: int) -> Tensor:

@@ -16,10 +16,11 @@ from .instances import ObjectLabel, RawImageInstance, ImageInstance
 
 class VIDTrnSampler(DataSampler):
     """only samples from VID training set, and allows variable values of tau."""
+
     def __init__(self, data_root: PathLike, a: float = 0.8) -> None:
-        self.label_root = Path(data_root, 'Annotations', 'VID', 'train')
-        self.frame_root = Path(data_root, 'Data', 'VID', 'train')
-        self._pascal_translator = _PascalTranslator(data_root, 'VID')
+        self.label_root = Path(data_root, "Annotations", "VID", "train")
+        self.frame_root = Path(data_root, "Data", "VID", "train")
+        self._pascal_translator = _PascalTranslator(data_root, "VID")
 
         self.a = a
 
@@ -44,7 +45,7 @@ class VIDTrnSampler(DataSampler):
         """
         # randomly sample a snippet dir and get associated sorted label paths
         snippet_dir = random.choice(self.snippet_dirs)
-        label_paths = Path(self.label_root, snippet_dir).glob('*.xml')
+        label_paths = Path(self.label_root, snippet_dir).glob("*.xml")
         label_paths = sorted(list(label_paths))
 
         # randomly sample tau from discrete laplacian distribution
@@ -59,7 +60,7 @@ class VIDTrnSampler(DataSampler):
             label_path = label_paths[label_ind]
             frame_path = Path(
                 self.frame_root,
-                label_path.relative_to(self.label_root).with_suffix('.JPEG')
+                label_path.relative_to(self.label_root).with_suffix(".JPEG"),
             )
 
             instance = ImageInstance(
@@ -67,7 +68,7 @@ class VIDTrnSampler(DataSampler):
                 labels=[
                     self._pascal_translator(pascal_object)
                     for pascal_object in parse_pascal_xmlfile(label_path)
-                ]
+                ],
             )
             instances.append(instance)
 
@@ -79,10 +80,11 @@ class VIDTrnSampler(DataSampler):
 class DETSampler(DataSampler):
     """samples from DET train + val. Instances containing classes that are not
     part of the VID dataset are ignored."""
+
     def __init__(self, data_root: PathLike) -> None:
-        self.label_root = Path(data_root, 'Annotations', 'DET')
-        self.frame_root = Path(data_root, 'Data', 'DET')
-        self._pascal_translator = _PascalTranslator(data_root, 'VID')
+        self.label_root = Path(data_root, "Annotations", "DET")
+        self.frame_root = Path(data_root, "Data", "DET")
+        self._pascal_translator = _PascalTranslator(data_root, "VID")
 
         # mapping from class_name to list of label paths containing that
         # class. This will be useful for sampling later on.
@@ -91,7 +93,7 @@ class DETSampler(DataSampler):
         # populate cls_label_paths, ignoring classes that are not in VID
         allowed_class_ids = set(self._pascal_translator.id_to_int.keys())
 
-        for label_path in list(self.label_root.rglob('*.xml')):
+        for label_path in list(self.label_root.rglob("*.xml")):
             class_ids = {
                 pascal_object.class_id
                 for pascal_object in parse_pascal_xmlfile(label_path)
@@ -120,7 +122,7 @@ class DETSampler(DataSampler):
         label_path = random.choice(self.cls_label_paths[class_name])
         frame_path = Path(
             self.frame_root,
-            label_path.relative_to(self.label_root).with_suffix('.JPEG')
+            label_path.relative_to(self.label_root).with_suffix(".JPEG"),
         )
 
         instance = ImageInstance(
@@ -128,7 +130,7 @@ class DETSampler(DataSampler):
             object_labels=[
                 self._pascal_translator(pascal_object)
                 for pascal_object in parse_pascal_xmlfile(label_path)
-            ]
+            ],
         )
 
         return instance
@@ -136,6 +138,7 @@ class DETSampler(DataSampler):
 
 class ImagenetTrnSampler(DataSampler):
     """samples from VID training set and entire DET dataset"""
+
     def __init__(self, data_root: PathLike, p_det: float = 0.5):
         self._det_sampler = DETSampler(data_root)
         self._vid_sampler = VIDTrnSampler(data_root)
@@ -164,10 +167,10 @@ class ImagenetTrnSampler(DataSampler):
                         class_id=label.class_id,
                         class_name=label.class_name,
                         box=label.box,
-                        track_id=t_id
+                        track_id=t_id,
                     )
                     for t_id, label in enumerate(instance.labels)
-                )
+                ),
             )
 
             instance = (instance, instance)
@@ -187,11 +190,12 @@ class ImagenetValManager(DataManager):
         data_root: dataset root directory.
         sample_size: number of instances to sample for validation set.
     """
+
     def __init__(self, data_root: PathLike, sample_size: int) -> None:
         """initialize and populate index_mappings."""
-        label_root = Path(data_root, 'Annotations', 'VID', 'val')
-        frame_root = Path(data_root, 'Data', 'VID', 'val')
-        pascal_translator = _PascalTranslator(data_root, 'VID')
+        label_root = Path(data_root, "Annotations", "VID", "val")
+        frame_root = Path(data_root, "Data", "VID", "val")
+        pascal_translator = _PascalTranslator(data_root, "VID")
 
         snippet_dirs = [p for p in label_root.iterdir() if p.is_dir()]
 
@@ -199,7 +203,7 @@ class ImagenetValManager(DataManager):
         for _ in range(sample_size):
             snippet_dir = random.choice(snippet_dirs)
 
-            label_paths = sorted(list(snippet_dir.glob('*.xml')))
+            label_paths = sorted(list(snippet_dir.glob("*.xml")))
 
             ind_0 = random.randrange(len(label_paths) - 2)
 
@@ -207,8 +211,7 @@ class ImagenetValManager(DataManager):
             for label_ind in [ind_0, ind_0 + 1]:
                 label_path = label_paths[label_ind]
                 frame_path = Path(
-                    frame_root,
-                    label_path.relative_to(label_root).with_suffix('.JPEG')
+                    frame_root, label_path.relative_to(label_root).with_suffix(".JPEG")
                 )
 
                 instance = RawImageInstance(
@@ -216,7 +219,7 @@ class ImagenetValManager(DataManager):
                     labels=[
                         pascal_translator(pascal_object)
                         for pascal_object in parse_pascal_xmlfile(label_path)
-                    ]
+                    ],
                 )
                 instance_pair.append(instance)
 
@@ -234,13 +237,15 @@ class ImagenetValManager(DataManager):
         Returns:
             frame_instances: human-readable sequence of frame instances.
         """
-        frame_instances = tuple([
-            ImageInstance(
-                im=Image.open(raw_instance.impath),  # load image
-                labels=raw_instance.object_labels
-            )
-            for raw_instance in self._index_mappings[i]
-        ])
+        frame_instances = tuple(
+            [
+                ImageInstance(
+                    im=Image.open(raw_instance.impath),  # load image
+                    labels=raw_instance.object_labels,
+                )
+                for raw_instance in self._index_mappings[i]
+            ]
+        )
 
         return frame_instances
 
@@ -250,12 +255,13 @@ class ImagenetValManager(DataManager):
 
 class _PascalTranslator(object):
     """translates pascal labels."""
+
     def __init__(self, data_root: PathLike, task: str) -> None:
         self.id_to_int, self.id_to_name = self._load_cls_mappings(data_root, task)
 
     @staticmethod
     def _load_cls_mappings(
-            data_root: PathLike, task: str
+        data_root: PathLike, task: str
     ) -> Tuple[Dict[str, int], Dict[str, str]]:
         """load mappings as dictionaries.
 
@@ -268,12 +274,12 @@ class _PascalTranslator(object):
             id_to_name: vid_id -> class name.
         """
         task = task.lower()
-        if task not in {'vid', 'det'}:
-            raise NotImplementedError(f'translating for {task} not implemented')
+        if task not in {"vid", "det"}:
+            raise NotImplementedError(f"translating for {task} not implemented")
 
         id_to_int, id_to_name = dict(), dict()
 
-        map_filepath = Path(data_root, 'devkit', 'data', f'map_{task}.txt')
+        map_filepath = Path(data_root, "devkit", "data", f"map_{task}.txt")
         with open(map_filepath) as mapfile:
             for line in mapfile:
                 cls_id, cls_int, cls_name = line.split()
@@ -296,5 +302,5 @@ class _PascalTranslator(object):
             class_id=self.id_to_int[pascal_object.class_id],
             class_name=self.id_to_name[pascal_object.class_id],
             box=pascal_object.bbox,
-            track_id=pascal_object.track_id
+            track_id=pascal_object.track_id,
         )

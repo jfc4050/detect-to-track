@@ -8,6 +8,7 @@ from PIL import Image
 
 class ObjectLabel(NamedTuple):
     """object label"""
+
     class_id: int
     class_name: str
     box: Tuple[float, float, float, float]
@@ -17,6 +18,7 @@ class ObjectLabel(NamedTuple):
 class RawImageInstance(NamedTuple):
     """unprocessed, immutable image instance for storage
     images are loaded lazily, labels are loaded eagerly"""
+
     impath: Path
     labels: Tuple[ObjectLabel, ...]
 
@@ -24,5 +26,6 @@ class RawImageInstance(NamedTuple):
 class ImageInstance(NamedTuple):
     """human readable frame instance
     images are loaded lazily, labels are loaded eagerly"""
+
     im: Image.Image
     labels: Tuple[ObjectLabel, ...]

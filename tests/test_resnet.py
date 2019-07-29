@@ -14,12 +14,12 @@ depths = [50, 101, 152]
 n_stages = 5
 
 
-@pytest.mark.parametrize('depth', depths)
+@pytest.mark.parametrize("depth", depths)
 def test_load_state_dict(depth):
     """make sure weights are loaded in properly, does not yet test
     renamed params"""
     rn = resnet(depth)
-    state_dict = load_url(model_urls[f'resnet{depth}'])
+    state_dict = load_url(model_urls[f"resnet{depth}"])
 
     rn.load_state_dict(state_dict, strict=False)
     for param_name, param in rn.named_parameters():
@@ -27,15 +27,13 @@ def test_load_state_dict(depth):
             assert torch.allclose(state_dict[param_name], param)
 
 
-@pytest.mark.parametrize('depth', depths)
-@pytest.mark.parametrize('first_trainable_stage', range(1, n_stages+1))
+@pytest.mark.parametrize("depth", depths)
+@pytest.mark.parametrize("first_trainable_stage", range(1, n_stages + 1))
 def test_train_eval(depth, first_trainable_stage):
-    rn = resnet(
-        depth, first_trainable_stage=first_trainable_stage, pretrained=False
-    )
+    rn = resnet(depth, first_trainable_stage=first_trainable_stage, pretrained=False)
     rn.train()
     for child_name, child in rn.named_children():
-        stage_num = int(re.search(r'^stage(\d)', child_name).group(1))
+        stage_num = int(re.search(r"^stage(\d)", child_name).group(1))
         should_be_frozen = stage_num < first_trainable_stage
 
         if should_be_frozen:
@@ -48,23 +46,21 @@ def test_train_eval(depth, first_trainable_stage):
         assert not child.training
 
 
-@pytest.mark.parametrize('depth', depths)
-@pytest.mark.parametrize('first_trainable_stage', range(1, n_stages+1))
+@pytest.mark.parametrize("depth", depths)
+@pytest.mark.parametrize("first_trainable_stage", range(1, n_stages + 1))
 def test_freeze(depth, first_trainable_stage):
-    rn = resnet(
-        depth, first_trainable_stage=first_trainable_stage, pretrained=False
-    )
+    rn = resnet(depth, first_trainable_stage=first_trainable_stage, pretrained=False)
     rn.freeze()
 
     for param_name, param in rn.named_parameters():
-        stage_num = int(re.search(r'^stage(\d)', param_name).group(1))
+        stage_num = int(re.search(r"^stage(\d)", param_name).group(1))
         if stage_num < first_trainable_stage:
             assert param.requires_grad is False
         else:
             assert param.requires_grad is True
 
 
-@pytest.mark.parametrize('depth', depths)
+@pytest.mark.parametrize("depth", depths)
 def test_resnet_fm_shapes(depth):
     rn = resnet(depth, pretrained=False).cuda()
     rn.eval()
@@ -82,12 +78,12 @@ def test_resnet_fm_shapes(depth):
     expected_channels = [
         rn.stage3.out_channels,
         rn.stage4.out_channels,
-        rn.stage5.out_channels
+        rn.stage5.out_channels,
     ]
     expected_strides = [8, 16, 16]
 
     for fmap, expected_c, expected_stride in zip(
-            fmaps, expected_channels, expected_strides
+        fmaps, expected_channels, expected_strides
     ):
         stride_h = x.size(2) / fmap.size(2)
         stride_w = x.size(3) / fmap.size(3)

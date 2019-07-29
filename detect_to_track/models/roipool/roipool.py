@@ -11,17 +11,16 @@ from torch.utils import cpp_extension
 # JIT compilation
 this_dir = Path(__file__).resolve().parent
 _ext = cpp_extension.load(
-    name='ext',
-    sources=[
-        Path(this_dir, srcfile) for srcfile in
-        ['roipool.cpp', 'roipool_cuda.cu']
-    ],
+    name="ext",
+    sources=[Path(this_dir, srcfile) for srcfile in ["roipool.cpp", "roipool_cuda.cu"]],
     extra_include_paths=[str(this_dir.parent)],
-    extra_cuda_cflags=['-arch=sm_60']
+    extra_cuda_cflags=["-arch=sm_60"],
 )
+
 
 class ROIPoolFunction(Function):
     """RoI Pooling function."""
+
     @staticmethod
     def forward(ctx, FM: Tensor, rois: Tensor, r_hw: int) -> Tensor:
         """RoI Pooling from FM, directed by rois.
@@ -63,6 +62,7 @@ class ROIPool(Module):
     Args:
         r_hw: height and width of pooled feature maps.
     """
+
     def __init__(self, r_hw: int) -> None:
         super().__init__()
         self.r_hw = r_hw

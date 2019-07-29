@@ -12,27 +12,22 @@ from torch.utils import cpp_extension
 # JIT compilation
 this_dir = Path(__file__).resolve().parent
 _ext = cpp_extension.load(
-    name='ext',
+    name="ext",
     sources=[
-        Path(this_dir, srcfile) for srcfile in
-        ['pointwise_correlation.cpp', 'pointwise_correlation_cuda.cu']
+        Path(this_dir, srcfile)
+        for srcfile in ["pointwise_correlation.cpp", "pointwise_correlation_cuda.cu"]
     ],
     extra_include_paths=[str(this_dir.parent)],
-    extra_cuda_cflags=['-arch=sm_60']
+    extra_cuda_cflags=["-arch=sm_60"],
 )
 
 
 class PointwiseCorrelationFunction(Function):
     """pointwise local correlations.
     see https://arxiv.org/abs/1710.03958"""
+
     @staticmethod
-    def forward(
-            ctx,
-            FM0: Tensor,
-            FM1: Tensor,
-            d_max: int,
-            stride: int
-    ) -> Tensor:
+    def forward(ctx, FM0: Tensor, FM1: Tensor, d_max: int, stride: int) -> Tensor:
         """pointwise correlations between FM0 and FM1.
 
         Args:
@@ -79,6 +74,7 @@ class PointwiseCorrelation(Module):
         d_max: maximum displacement.
         stride: displacement stride.
     """
+
     def __init__(self, d_max: int, stride: int) -> None:
         super().__init__()
         self.d_max = d_max
@@ -95,6 +91,4 @@ class PointwiseCorrelation(Module):
         Returns:
             out: (|B|, H, W, (2d+1), (2d+1)) pointwise correlations.
         """
-        return PointwiseCorrelationFunction.apply(
-            FM0, FM1, self.d_max, self.stride
-        )
+        return PointwiseCorrelationFunction.apply(FM0, FM1, self.d_max, self.stride)

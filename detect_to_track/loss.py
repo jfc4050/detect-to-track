@@ -18,8 +18,9 @@ class FocalLoss(nn.BCELoss):
         gamma: focusing factor.
         alpha: class balancing factor.
     """
-    def __init__(self, alpha: float = 0.25, gamma: float = 2.) -> None:
-        super().__init__(reduction='none')
+
+    def __init__(self, alpha: float = 0.25, gamma: float = 2.0) -> None:
+        super().__init__(reduction="none")
         self.alpha = make_param(alpha)
         self.gamma = make_param(gamma)
 
@@ -50,8 +51,9 @@ class FocalLoss(nn.BCELoss):
 
 class BBoxLoss(nn.SmoothL1Loss):
     """smooth L1 loss applied only at positive anchors"""
+
     def __init__(self) -> None:
-        super().__init__(reduction='none')
+        super().__init__(reduction="none")
 
     def forward(self, b_hat: Tensor, b_star: Tensor, c_star: Tensor) -> Tensor:
         """compute bounding box loss.
@@ -77,18 +79,14 @@ class RPNLoss(nn.Module):
         alpha: see FocalLoss.
         gamma: see FocalLoss.
     """
+
     def __init__(self, alpha: float, gamma: float) -> None:
         super().__init__()
         self._o_loss_func = FocalLoss(alpha, gamma)
         self._b_loss_func = BBoxLoss()
 
     def forward(
-            self,
-            lw: Tensor,
-            o_hat: Tensor,
-            o_star: Tensor,
-            b_hat: Tensor,
-            b_star: Tensor
+        self, lw: Tensor, o_hat: Tensor, o_star: Tensor, b_hat: Tensor, b_star: Tensor
     ) -> Tuple[Tensor, Tensor]:
         """compute objectness and regression loss.
 
@@ -119,6 +117,7 @@ class RCNNLoss(nn.Module):
         alpha: see FocalLoss.
         gamma: see FocalLoss.
     """
+
     def __init__(self, alpha: float, gamma: float) -> None:
         super().__init__()
         self._c_loss_func = FocalLoss(alpha, gamma)
@@ -158,6 +157,7 @@ class RCNNLoss(nn.Module):
 
 class TrackLoss(nn.Module):
     """smooth L1 loss for track regression."""
+
     def __init__(self) -> None:
         super().__init__()
         self.l1_module = nn.SmoothL1Loss()

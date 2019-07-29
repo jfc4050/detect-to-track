@@ -12,6 +12,7 @@ from . import ObjectLabel
 class FRCNNLabelEncoder(abc.ABC):
     """handles encoding of ground-truth labels according to
     https://arxiv.org/abs/1506.01497"""
+
     @abc.abstractmethod
     def __call__(self, labels):
         raise NotImplementedError
@@ -28,11 +29,9 @@ class AnchorEncoder(FRCNNLabelEncoder):
         iou_margin: if |iou(anchor, best-gt-bbox) - iou_thresh| < iou_margin,
             losses for this anchor are ignored during training.
     """
+
     def __init__(
-            self,
-            anchors: np.ndarray,
-            iou_thresh: float = 0.5,
-            iou_margin: float = 0.2
+        self, anchors: np.ndarray, iou_thresh: float = 0.5, iou_margin: float = 0.2
     ):
         self.anchors = anchors
         self._iou_thresh = iou_thresh
@@ -42,13 +41,11 @@ class AnchorEncoder(FRCNNLabelEncoder):
         ### during training.
         anchors_ijij = ijhw_to_ijij(self.anchors)
         self._crosses_boundary = np.logical_or(
-            np.any(anchors_ijij <= 0, axis=1),
-            np.any(anchors_ijij >= 1, axis=1)
+            np.any(anchors_ijij <= 0, axis=1), np.any(anchors_ijij >= 1, axis=1)
         )
 
     def __call__(
-            self,
-            labels: Sequence[ObjectLabel]
+        self, labels: Sequence[ObjectLabel]
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """encode human-readable ground-truth frame instances into
         network-readable frame instances, according to Faster RCNN conventions.
@@ -79,15 +76,13 @@ class AnchorEncoder(FRCNNLabelEncoder):
         ### loss_weights encoding
         loss_weights = np.logical_and(
             np.abs(anchwise_best_iou - self._iou_thresh) > self._iou_margin,
-            np.logical_not(self._crosses_boundary)
+            np.logical_not(self._crosses_boundary),
         )  # (|A|,)
 
         ### c_star encoding
         is_best_anchor = np.zeros(len(self.anchors))  # (|A|,)
         is_best_anchor[ious.argmax(0)] = 1
-        pos_mask = np.logical_or(
-            anchwise_best_iou > self._iou_thresh, is_best_anchor
-        )
+        pos_mask = np.logical_or(anchwise_best_iou > self._iou_thresh, is_best_anchor)
         c_star = classes[anchwise_best_gt_ind]
         c_star = pos_mask * classes[anchwise_best_gt_ind]
 
@@ -107,13 +102,12 @@ class RegionEncoder(FRCNNLabelEncoder):
         iou_thresh: if iou(region, gt-bbox) > iou_thresh for any gt-bbox,
             region is assigned a class.
     """
+
     def __init__(self, iou_thresh: float) -> None:
         self._iou_thresh = iou_thresh
 
     def __call__(
-            self,
-            regions: np.ndarray,
-            labels: Sequence[ObjectLabel]
+        self, regions: np.ndarray, labels: Sequence[ObjectLabel]
     ) -> Tuple[np.ndarray, np.ndarray]:
         """encode human-readable ground-truth frame instances into
         network-readable frame instances, according to Faster RCNN conventions.
@@ -142,9 +136,7 @@ class RegionEncoder(FRCNNLabelEncoder):
         c_star = pos_mask * c_star  # (|A|,)
 
         ### b_star encoding
-        b_star = frcnn_box_encode(
-            regions, boxes[regionwise_best_gt, :]
-        )  # (|A|, 4)
+        b_star = frcnn_box_encode(regions, boxes[regionwise_best_gt, :])  # (|A|, 4)
 
         return c_star, b_star
 
@@ -167,7 +159,7 @@ def frcnn_box_encode(anchors: np.ndarray, boxes: np.ndarray) -> np.ndarray:
     """
     b_ij, b_hw = np.hsplit(boxes, 2)  # 2*(|A|, 2)
     a_ij, a_hw = np.hsplit(anchors, 2)  # 2*(|A|, 2)
-    t_ij = (b_ij - a_ij) / a_hw   # (|A|, 2)
+    t_ij = (b_ij - a_ij) / a_hw  # (|A|, 2)
     t_hw = np.log(b_hw / a_hw)  # (|A|, 2)
     offsets = np.concatenate([t_ij, t_hw], axis=1)  # (|A|, 4)
 
@@ -202,8 +194,7 @@ def frcnn_box_decode(anchors: np.ndarray, offsets: np.ndarray) -> np.ndarray:
 
 
 def track_encode(
-        labels_0: Sequence[ObjectLabel],
-        labels_1: Sequence[ObjectLabel]
+    labels_0: Sequence[ObjectLabel], labels_1: Sequence[ObjectLabel]
 ) -> Tuple[np.ndarray, np.ndarray]:
     """encodes track regression targets.
 

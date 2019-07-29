@@ -11,27 +11,21 @@ from torch.utils import cpp_extension
 # JIT compilation
 this_dir = Path(__file__).resolve().parent
 _ext = cpp_extension.load(
-    name='ext',
+    name="ext",
     sources=[
-        Path(this_dir, srcfile) for srcfile in
-        ['ps_roipool.cpp', 'ps_roipool_cuda.cu']
+        Path(this_dir, srcfile) for srcfile in ["ps_roipool.cpp", "ps_roipool_cuda.cu"]
     ],
     extra_include_paths=[str(this_dir.parent)],
-    extra_cuda_cflags=['-arch=sm_60']
+    extra_cuda_cflags=["-arch=sm_60"],
 )
 
 
 class PSROIPoolFunction(Function):
     """position-sensitive ROI-pooling function.
     see https://arxiv.org/abs/1605.06409"""
+
     @staticmethod
-    def forward(
-            ctx,
-            FM: Tensor,
-            rois: Tensor,
-            n_targets: int,
-            r_hw: int
-    ) -> Tensor:
+    def forward(ctx, FM: Tensor, rois: Tensor, n_targets: int, r_hw: int) -> Tensor:
         """
         Args:
             FM: (n_targets * r_hw^2, H, W); feature map for position-sensitive
@@ -49,8 +43,8 @@ class PSROIPoolFunction(Function):
         expected_channels = n_targets * r_hw ** 2
         if FM.size(0) != expected_channels:
             raise ValueError(
-                f'expected {expected_channels} feature map channels, '
-                f'recieved feature map of shape {tuple(FM.shape)}'
+                f"expected {expected_channels} feature map channels, "
+                f"recieved feature map of shape {tuple(FM.shape)}"
             )
 
         pooled = _ext.ps_roipool_forward(FM, rois, n_targets, r_hw)
@@ -82,6 +76,7 @@ class PSROIPool(Module):
         n_targets: number of targets per ROI.
         r_hw: height and with of pooled features.
     """
+
     def __init__(self, n_targets: int, r_hw: int):
         super().__init__()
         self.n_targets = n_targets
