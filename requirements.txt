@@ -13,6 +13,7 @@ mccabe==0.6.1
 mkl-fft==1.0.12
 mkl-random==1.0.2
 mkl-service==2.0.2
+ml-utils==1.1.0
 more-itertools==7.0.0
 numpy==1.16.4
 olefile==0.46

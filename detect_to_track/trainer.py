@@ -10,13 +10,18 @@ from torch.nn.parallel import DataParallel
 from torch.utils.data import BatchSampler
 from torch.optim import SGD
 import numpy as np
-from ml_utils.prediction_filtering import PredictionFilterPipeline
+from ml_utils.prediction_filtering import (
+    PredictionFilterPipeline,
+    ConfidenceFilter,
+    MaxDetFilter,
+    NMSFilter,
+)
 
 from .data.types import DataSampler, DataManager, ImageInstance
 from .data.encoding import AnchorEncoder, RegionEncoder, frcnn_box_decode, track_encode
 from .loss import RPNLoss, RCNNLoss, TrackLoss
 from .models import DetectTrackModule
-from .utils import DTLoss, tensor_to_ndarray, make_input_transform
+from .utils import DTLoss, build_anchors, tensor_to_ndarray, make_input_transform
 
 
 class DetectTrackTrainer:
@@ -25,27 +30,6 @@ class DetectTrackTrainer:
     this can be (but is not currently) addressed by substituting the
     ROIPooling layer for a ROIWarping layer.
     see https://arxiv.org/abs/1506.01497.
-
-    Args:
-        model:
-        trn_sampler: training set sampler.
-        val_manager: validation set manager.
-        trn_sample_size: number of training examples to train on before
-            validating and reporting.
-        batch_size: minibatch size.
-        net_input_hw: height and width of network input tensor.
-        anchors:
-        encoder_iou_thresh:
-        encoder_iou_margin:
-        region_filter: given a set of region proposals, returns a higher
-            confidence subset of proposals.
-        alpha: loss alpha balancing factor.
-        gamma: loss focusing factor.
-        loss_coefs: leading coefficient for each element of joint loss.
-            gradients are backpropagated from dot(loss_coefs, losses)
-        sgd_kwargs: parameters for stochastic gradient descent.
-        patience:
-        output_dir:
     """
 
     def __init__(
@@ -55,11 +39,15 @@ class DetectTrackTrainer:
         val_manager: DataManager,
         trn_sample_size: int,
         batch_size: int,
-        net_input_hw: int,
-        anchors: np.ndarray,
+        input_dims: Tuple[int, int],
+        fm_stride: int,
+        anchor_areas: Sequence[float],
+        anchor_aspect_ratios: Sequence[float],
         encoder_iou_thresh: float,
         encoder_iou_margin: float,
-        region_filter: PredictionFilterPipeline,
+        trn_roi_conf_thresh: float,
+        trn_roi_max_dets: int,
+        trn_roi_nms_iou_thresh: float,
         alpha: float,
         gamma: float,
         loss_coefs: Sequence[float],
@@ -68,7 +56,7 @@ class DetectTrackTrainer:
         output_dir: str = "output",
     ) -> None:
         ### models
-        self._im_to_x = make_input_transform(net_input_hw)
+        self._im_to_x = make_input_transform(input_dims)
         if torch.cuda.device_count() > 1:
             model = DataParallel(model)
         self.model = model.cuda()
@@ -80,11 +68,18 @@ class DetectTrackTrainer:
         self.batch_size = batch_size
 
         ### ground-truth label encoding
+        anchors = build_anchors(
+            (d // fm_stride for d in input_dims), anchor_areas, anchor_aspect_ratios
+        )
         self._anchor_encoder = AnchorEncoder(
             anchors, encoder_iou_thresh, encoder_iou_margin
         )
         self._region_encoder = RegionEncoder(encoder_iou_thresh)
-        self._region_filter = region_filter  # filters rois before rcnn
+        self._region_filter = PredictionFilterPipeline(
+            ConfidenceFilter(trn_roi_conf_thresh),
+            MaxDetFilter(trn_roi_max_dets),
+            NMSFilter(trn_roi_nms_iou_thresh),
+        )  # filters rois before rcnn when training
 
         ### loss
         self._rpn_loss_func = RPNLoss(alpha, gamma)

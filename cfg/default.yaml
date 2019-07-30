@@ -7,7 +7,7 @@ SPLIT_SIZE: 10000
 BATCH_SIZE: 5
 
 # anchors
-ANCHOR_SCALE_FACTORS: [0.001, 0.004, 0.016, 0.064, 0.256] 
+ANCHOR_AREAS: [0.001, 0.004, 0.016, 0.064, 0.256] 
 ANCHOR_ASPECT_RATIOS: [0.5, 1.0, 2.0]
 
 # encoding
@@ -16,6 +16,7 @@ ENCODER_IOU_MARGIN: 0.2
 
 # region filtering
 TRAIN_ROI_CONF_THRESH: 0.3
+TRAIN_MAX_ROIS: 6000
 TRAIN_NMS_IOU_THRESH: 0.5
 
 # loss
@@ -33,6 +34,7 @@ PATIENCE: 20  # number of iterations with no improvement before quitting
 BACKBONE_ARCH: resnet50
 FIRST_TRAINABLE_STAGE: 3
 INPUT_SHAPE: [608, 1200]
+FM_STRIDE: 16
 
 D_MAX: 8  # max displacement for pointwise correlation
 
