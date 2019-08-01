@@ -7,6 +7,7 @@ import yaml
 
 from detect_to_track.models import DetectTrackModule
 from detect_to_track.data.imagenet import ImagenetTrnSampler, ImagenetValManager
+from detect_to_track.data.types import DataManagerWrapper
 from detect_to_track.trainer import DetectTrackTrainer
 
 
@@ -24,14 +25,15 @@ model.build_c_tracker(cfg.D_MAX, cfg.K)
 model.backbone.freeze()  # needs to be done after state dict loaded
 
 ### data setup
-trn_sampler = ImagenetTrnSampler(cfg.DATA_ROOT, cfg.P_DET)
+trn_manager = DataManagerWrapper(
+    ImagenetTrnSampler(cfg.DATA_ROOT, cfg.P_DET), cfg.SPLIT_SIZE
+)
 val_manager = ImagenetValManager(cfg.DATA_ROOT, cfg.VAL_SIZE)
 
 trainer = DetectTrackTrainer(
     model,
-    trn_sampler,
+    trn_manager,
     val_manager,
-    cfg.SPLIT_SIZE,
     cfg.BATCH_SIZE,
     cfg.INPUT_SHAPE,
     cfg.FM_STRIDE,

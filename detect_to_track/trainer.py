@@ -7,7 +7,7 @@ from typing import Tuple, Sequence
 
 import torch
 from torch.nn.parallel import DataParallel
-from torch.utils.data import BatchSampler
+from torch.utils.data import BatchSampler, SequentialSampler, RandomSampler
 from torch.optim import SGD
 import numpy as np
 from ml_utils.prediction_filtering import (
@@ -17,7 +17,7 @@ from ml_utils.prediction_filtering import (
     NMSFilter,
 )
 
-from .data.types import DataSampler, DataManager, ImageInstance
+from .data.types import DataManager, ImageInstance
 from .data.encoding import AnchorEncoder, RegionEncoder, frcnn_box_decode, track_encode
 from .loss import RPNLoss, RCNNLoss, TrackLoss
 from .models import DetectTrackModule
@@ -35,9 +35,8 @@ class DetectTrackTrainer:
     def __init__(
         self,
         model: DetectTrackModule,
-        trn_sampler: DataSampler,
+        trn_manager: DataManager,
         val_manager: DataManager,
-        trn_sample_size: int,
         batch_size: int,
         input_dims: Tuple[int, int],
         fm_stride: int,
@@ -62,9 +61,10 @@ class DetectTrackTrainer:
         self.model = model.cuda()
 
         ### datasets
-        self.trn_sampler = trn_sampler
-        self.val_loader = BatchSampler(val_manager, batch_size, False)
-        self.trn_sample_size = trn_sample_size
+        self.trn_loader = BatchSampler(
+            SequentialSampler(trn_manager), batch_size, False
+        )
+        self.val_loader = BatchSampler(RandomSampler(val_manager), batch_size, False)
         self.batch_size = batch_size
 
         ### ground-truth label encoding
@@ -231,8 +231,7 @@ class DetectTrackTrainer:
     def train(self) -> DTLoss:
         self.model.train()
         trn_loss = DTLoss()
-        for _ in range(self.trn_sample_size // self.batch_size):
-            minibatch = [self.trn_sampler.sample() for _ in range(self.batch_size)]
+        for minibatch in self.trn_loader:
             minibatch_loss = self._minibatch_loss(minibatch)
 
             self._optim.zero_grad()

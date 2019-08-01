@@ -29,6 +29,20 @@ class DataManager(abc.ABC):
         raise NotImplementedError
 
 
+class DataManagerWrapper(DataManager):
+    """wraps a `DataSampler` object so that it behaves like a `DataManager`."""
+
+    def __init__(self, sampler: DataSampler, nominal_len: int) -> None:
+        self.sampler = sampler
+        self.nominal_len = nominal_len
+
+    def __getitem__(self, i: int) -> Tuple[ImageInstance, ImageInstance]:
+        return self.sampler.sample()
+
+    def __len__(self) -> int:
+        return self.nominal_len
+
+
 class ObjectLabel(NamedTuple):
     """object label"""
 
