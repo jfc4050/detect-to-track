@@ -6,8 +6,7 @@ from types import SimpleNamespace
 import yaml
 
 from detect_to_track.models import DetectTrackModule
-from detect_to_track.data.imagenet import ImagenetTrnSampler, ImagenetValManager
-from detect_to_track.data.types import DataManagerWrapper
+from detect_to_track.data.imagenet import setup_vid_datasets
 from detect_to_track.trainer import DetectTrackTrainer
 
 
@@ -24,11 +23,9 @@ model.build_rcnn(cfg.N_CLASSES, cfg.K)
 model.build_c_tracker(cfg.D_MAX, cfg.K)
 model.backbone.freeze()  # needs to be done after state dict loaded
 
-### data setup
-trn_manager = DataManagerWrapper(
-    ImagenetTrnSampler(cfg.DATA_ROOT, cfg.P_DET), cfg.SPLIT_SIZE
+trn_manager, val_manager = setup_vid_datasets(
+    cfg.DATA_ROOT, cfg.VID_PARTITION_SIZES, cfg.TRN_SIZE, cfg.VAL_SIZE, cfg.P_DET, cfg.A
 )
-val_manager = ImagenetValManager(cfg.DATA_ROOT, cfg.VAL_SIZE)
 
 trainer = DetectTrackTrainer(
     model,

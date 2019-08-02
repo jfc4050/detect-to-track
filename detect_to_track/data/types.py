@@ -7,6 +7,31 @@ from typing import Tuple, NamedTuple, Optional
 from PIL import Image
 
 
+class ObjectLabel(NamedTuple):
+    """object label"""
+
+    class_id: int
+    class_name: str
+    box: Tuple[float, float, float, float]
+    track_id: Optional[int] = None
+
+
+class RawImageInstance(NamedTuple):
+    """unprocessed, immutable image instance for storage
+    images and labels loaded lazily."""
+
+    impath: Path
+    labelpath: Path
+
+
+class ImageInstance(NamedTuple):
+    """human readable frame instance
+    images and labels are loaded lazily."""
+
+    im: Image.Image
+    labels: Tuple[ObjectLabel, ...]
+
+
 class DataSampler(abc.ABC):
     """general data sampler object for non-deterministic data sampling.
     handles data i/o and conversion to common format."""
@@ -41,28 +66,3 @@ class DataManagerWrapper(DataManager):
 
     def __len__(self) -> int:
         return self.nominal_len
-
-
-class ObjectLabel(NamedTuple):
-    """object label"""
-
-    class_id: int
-    class_name: str
-    box: Tuple[float, float, float, float]
-    track_id: Optional[int] = None
-
-
-class RawImageInstance(NamedTuple):
-    """unprocessed, immutable image instance for storage
-    images are loaded lazily, labels are loaded eagerly"""
-
-    impath: Path
-    labels: Tuple[ObjectLabel, ...]
-
-
-class ImageInstance(NamedTuple):
-    """human readable frame instance
-    images are loaded lazily, labels are loaded eagerly"""
-
-    im: Image.Image
-    labels: Tuple[ObjectLabel, ...]

@@ -1,9 +1,11 @@
 # data
-DATA_ROOT: /home/justin/datasets/ILSVRC2015
-N_CLASSES: 30
+DATA_ROOT: /home/justin/datasets/ILSVRC
+VID_PARTITION_SIZES: [0.8, 0.2]
+TRN_SIZE: 10000
+VAL_SIZE: 5000
 P_DET: 0.5  # probability of sampling from DET instead of VID
-VAL_SIZE: 3000
-SPLIT_SIZE: 10000
+A: 0.8
+N_CLASSES: 30
 BATCH_SIZE: 5
 
 # anchors

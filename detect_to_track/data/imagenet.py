@@ -1,170 +1,244 @@
-"""dataset management for imagenet."""
+"""data management for imagenet."""
 
 from pathlib import Path
 from os import PathLike
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Sequence, Set
 import random
 from collections import defaultdict
 
 from PIL import Image
-from scipy.stats import dlaplace, binom
+import numpy as np
+from scipy.stats import dlaplace, bernoulli
 from ml_utils.data.pascal import parse_pascal_xmlfile, PascalObjectLabel
+from ml_utils.data.misc import partition_items
 
 from .types import (
     DataSampler,
     DataManager,
+    DataManagerWrapper,
     ObjectLabel,
     RawImageInstance,
     ImageInstance,
 )
 
 
-class VIDTrnSampler(DataSampler):
-    """only samples from VID training set, and allows variable values of tau."""
+class _VIDRawSampler:
+    """non-deterministically samples raw image instances (paths only)
+    from VID training set. training example images and labels are loaded lazily.
 
-    def __init__(self, data_root: PathLike, a: float = 0.8) -> None:
+    Args:
+        data_root: ILSVRC dataset root.
+        snippet_ids: snippet identifiers that this sampler can sample from.
+        a: shape parameter for laplacian distribution (of tau).
+            PMF: f(x) = tanh(a/2)exp(-a|x|).
+    """
+
+    def __init__(self, data_root: Path, snippet_ids: Sequence[str], a: float) -> None:
         self.label_root = Path(data_root, "Annotations", "VID", "train")
         self.frame_root = Path(data_root, "Data", "VID", "train")
-        self._pascal_translator = _PascalTranslator(data_root, "VID")
-
         self.a = a
 
-        self.snippet_dirs = [
-            snippet_dir
-            for batch_dir in self.label_root.iterdir()
-            for snippet_dir in batch_dir.iterdir()
-        ]
+        self._snippet_framecounts = dict()
+        for snippet_id in snippet_ids:
+            n_frames = len(list(Path(self.frame_root, snippet_id).glob("*.JPEG")))
+            n_labels = len(list(Path(self.label_root, snippet_id).glob("*.xml")))
 
-    def sample(self) -> Tuple[ImageInstance, ImageInstance]:
-        """sample frames from times t and t+tau.
+            if n_frames != n_labels:
+                raise RuntimeError(
+                    f"for snippet {snippet_id} "
+                    f"found {n_frames} frames but {n_labels} labels"
+                )
+            self._snippet_framecounts[snippet_id] = n_frames
 
-        time step tau is sampled from a discrete laplacian distribution to
+    def sample(self) -> Tuple[RawImageInstance, RawImageInstance]:
+        """sample frames from time steps t and t+tau.
+
+        time delta tau is sampled from a discrete laplacian distribution to
         create a bias towards small displacements.
 
-        original paper only takes 10 frames from each snippet because
-        of large differences in snippet lengths limiting sample diversity.
+        original paper suggests only taking 10 frames from each snippet because
+        of large differences in snippet lengths limiting dataset diversity.
 
         uniformly sampling a snippet before sampling frames from that
         snippet solves the same problem, while also maximizing sample
         diversity within snippets.
         """
-        # randomly sample a snippet dir and get associated sorted label paths
-        snippet_dir = random.choice(self.snippet_dirs)
-        label_paths = Path(self.label_root, snippet_dir).glob("*.xml")
-        label_paths = sorted(list(label_paths))
+        snippet_id, snippet_n_frames = random.choice(
+            list(self._snippet_framecounts.items())
+        )
 
-        # randomly sample tau from discrete laplacian distribution
-        tau = abs(dlaplace.rvs(self.a))
+        # sample tau from discrete laplacian distribution,
+        # then clip so that it will not result in an invalid pair of frames
+        tau = np.clip(dlaplace.rvs(self.a), 0, snippet_n_frames - 1)
+        i0 = random.randrange(0, snippet_n_frames - tau)
 
-        # randomly sample first frame
-        ind_0 = random.randrange(len(label_paths) - tau)
-        ind_1 = ind_0 + tau
-
-        instances = list()
-        for label_ind in [ind_0, ind_1]:
-            label_path = label_paths[label_ind]
-            frame_path = Path(
-                self.frame_root,
-                label_path.relative_to(self.label_root).with_suffix(".JPEG"),
+        raw_instances = tuple(
+            RawImageInstance(
+                impath=Path(self.frame_root, snippet_id, f"{idx:06d}.JPEG"),
+                labelpath=Path(self.label_root, snippet_id, f"{idx:06d}.xml"),
             )
+            for idx in (i0, i0 + tau)
+        )
 
-            instance = ImageInstance(
-                im=Image.open(frame_path),
-                labels=[
-                    self._pascal_translator(pascal_object)
-                    for pascal_object in parse_pascal_xmlfile(label_path)
-                ],
-            )
-            instances.append(instance)
-
-        instances = tuple(instances)
-
-        return instances
+        return raw_instances
 
 
-class DETSampler(DataSampler):
-    """samples from DET train + val. Instances containing classes that are not
-    part of the VID dataset are ignored."""
+class VIDSampler(DataSampler):
+    """samples from VID training set at query time, and allows variable values of tau.
+    queries are non-deterministic.
 
-    def __init__(self, data_root: PathLike) -> None:
-        self.label_root = Path(data_root, "Annotations", "DET")
-        self.frame_root = Path(data_root, "Data", "DET")
+    Args:
+        data_root: ILSVRC dataset root.
+        snippet_ids: snippet identifiers that this sampler can sample from.
+        a: shape parameter for laplacian distribution (of tau).
+            PMF: f(x) = tanh(a/2)exp(-a|x|).
+    """
+
+    def __init__(
+        self, data_root: PathLike, snippet_idents: Sequence[str], a: float
+    ) -> None:
+        self._raw_sampler = _VIDRawSampler(data_root, snippet_idents, a)
         self._pascal_translator = _PascalTranslator(data_root, "VID")
+
+    def sample(self) -> Tuple[ImageInstance, ImageInstance]:
+        """non-deterministically query `raw_sampler` for image and label paths,
+        then load images and labels."""
+
+        return tuple(
+            ImageInstance(
+                im=Image.open(ri.impath),
+                labels=tuple(
+                    self._pascal_translator(pascal_object)
+                    for pascal_object in parse_pascal_xmlfile(ri.labelpath)
+                ),
+            )
+            for ri in self._raw_sampler.sample()
+        )
+
+
+class VIDManager(DataManager):
+    """samples from VID training set at init time to form a dataset, which can
+    then be queried deterministically.
+
+    Args:
+        data_root: ILSVRC dataset root.
+        snippet_ids: snippet identifiers that this sampler can sample from.
+        n_samples: number of samples to draw (non-deterministically) from VID
+            training set to form dataset.
+    """
+
+    def __init__(
+        self, data_root: PathLike, snippet_idents: Sequence[str], n_samples: int
+    ) -> None:
+        raw_sampler = _VIDRawSampler(data_root, snippet_idents, 0.5)
+        self._raw_samples = [raw_sampler.sample() for _ in range(n_samples)]
+        self._pascal_translator = _PascalTranslator(data_root, "VID")
+
+    def __getitem__(self, i: int) -> Tuple[ImageInstance, ImageInstance]:
+        return tuple(
+            ImageInstance(
+                im=Image.open(ri.impath),
+                labels=tuple(
+                    self._pascal_translator(pascal_object)
+                    for pascal_object in parse_pascal_xmlfile(ri.labelpath)
+                ),
+            )
+            for ri in self._raw_samples[i]
+        )
+
+    def __len__(self) -> int:
+        return len(self._raw_samples)
+
+
+class DETRawSampler:
+    """randomly samples raw instances (paths to images and labels) from
+    DET train+val."""
+
+    def __init__(self, data_root: Path, allowed_class_ids: Set[int]) -> None:
+        label_root = Path(data_root, "Annotations", "DET")
+        frame_root = Path(data_root, "Data", "DET")
 
         # mapping from class_name to list of label paths containing that
         # class. This will be useful for sampling later on.
-        self.cls_label_paths = defaultdict(list)
+        self._rawinstances_by_cls = defaultdict(list)
 
-        # populate cls_label_paths, ignoring classes that are not in VID
-        allowed_class_ids = set(self._pascal_translator.id_to_int.keys())
+        trn_files = [f"train_{cls_id}" for cls_id in allowed_class_ids]
+        val_files = ["val"]
+        for mode, files in zip(["train", "val"], [trn_files, val_files]):
+            for f in files:
+                instance_list_path = Path(data_root, "ImageSets", "DET", f"{f}.txt")
+                with open(instance_list_path) as instance_list:
+                    for line in instance_list:
+                        instance_id, _ = line.split()
+                        if "extra" in instance_id:
+                            continue
+                        framepath = Path(frame_root, mode, f"{instance_id}.JPEG")
+                        labelpath = Path(label_root, mode, f"{instance_id}.xml")
 
-        for label_path in list(self.label_root.rglob("*.xml")):
-            class_ids = {
-                pascal_object.class_id
-                for pascal_object in parse_pascal_xmlfile(label_path)
-            }
+                        class_ids = {
+                            pascal_object.class_id
+                            for pascal_object in parse_pascal_xmlfile(labelpath)
+                        }
+                        if class_ids.issubset(allowed_class_ids):
+                            ri = RawImageInstance(impath=framepath, labelpath=labelpath)
+                            for class_id in class_ids:
+                                self._rawinstances_by_cls[class_id].append(ri)
 
-            # if any object has a class_id is not a VID class_id, this
-            # instance is skipped
-            if class_ids.issubset(allowed_class_ids):
-                class_names = {
-                    self._pascal_translator.id_to_name[class_id]
-                    for class_id in class_ids
-                }
-                for class_name in class_names:
-                    self.cls_label_paths[class_name].append(label_path)
-
-    def sample(self) -> ImageInstance:
-        """randomly sample instance from full DET dataset.
-
-        original paper samples a fixed number of instances from each class
-        because of class imbalance. This implementation uniformly samples from
+    def sample(self) -> RawImageInstance:
+        """paper suggests sampling a fixed number of instances from each class
+        because of class imbalance. This implementation instead uniformly samples from
         available classes first, then samples instances that contain that
         class. This solves the same problem without throwing data away.
         """
-        class_name = random.choice(self.cls_label_paths.keys())
+        raw_instances = random.choice(self._rawinstances_by_cls.values())
+        raw_instance = random.choice(raw_instances)
 
-        label_path = random.choice(self.cls_label_paths[class_name])
-        frame_path = Path(
-            self.frame_root,
-            label_path.relative_to(self.label_root).with_suffix(".JPEG"),
-        )
+        return raw_instance
 
+
+class DETSampler(DataSampler):
+    """non-deterministically samples from DET train + val.
+    Instances containing classes that are not part of the VID dataset are ignored."""
+
+    def __init__(self, data_root: PathLike) -> None:
+        self._pascal_translator = _PascalTranslator(data_root, "VID")
+        allowed_class_ids = set(self._pascal_translator.id_to_int.values())
+        self._raw_sampler = DETRawSampler(data_root, allowed_class_ids)
+
+    def sample(self) -> ImageInstance:
+        raw_instance = self._raw_sampler.sample()
         instance = ImageInstance(
-            im=Image.open(frame_path),
-            object_labels=[
+            im=Image.open(raw_instance.impath),
+            object_labels=tuple(
                 self._pascal_translator(pascal_object)
-                for pascal_object in parse_pascal_xmlfile(label_path)
-            ],
+                for pascal_object in parse_pascal_xmlfile(raw_instance.labelpath)
+            ),
         )
-
         return instance
 
 
-class ImagenetTrnSampler(DataSampler):
-    """samples from VID training set and entire DET dataset"""
+class ImagenetSampler(DataSampler):
+    """samples from union of VID training set and entire DET dataset.
 
-    def __init__(self, data_root: PathLike, p_det: float = 0.5):
-        self._det_sampler = DETSampler(data_root)
-        self._vid_sampler = VIDTrnSampler(data_root)
+    Args:
+        vid_sampler: samples from VID training set.
+        det_sampler: samples from DET train+val dataset.
+        p_det: probability of sampling from DET sampler.
+            p(DET) = p_det, p(VID) = 1 - p_det
+    """
 
+    def __init__(
+        self, vid_sampler: DataSampler, det_sampler: DataSampler, p_det: float
+    ) -> None:
+        self._vid_sampler = vid_sampler
+        self._det_sampler = det_sampler
         self.p_det = p_det
 
     def sample(self) -> Tuple[ImageInstance, ImageInstance]:
-        """sample from DET with probability p_det, or VID with probability
-        1 - p_det.
-        If sampling from DET use the same image, pretending that they are
-        adjacent frames in a sequence.
-
-        Returns:
-            instance: pair of adjacent frames from a sequence along with labels.
-        """
-        sample_det = binom.rvs(1, self.p_det)  # binomial distribution
+        sample_det = bernoulli.rvs(self.p_det)
 
         if sample_det:
             instance = self._det_sampler.sample()
-
-            # add arbitrary track_ids to DET instance
             instance = ImageInstance(
                 im=instance.im,
                 labels=tuple(
@@ -172,90 +246,18 @@ class ImagenetTrnSampler(DataSampler):
                         class_id=label.class_id,
                         class_name=label.class_name,
                         box=label.box,
-                        track_id=t_id,
+                        track_id=t_id,  # add arbitrary track_ids to DET instance.
                     )
                     for t_id, label in enumerate(instance.labels)
                 ),
             )
-
+            # when sampling from DET use the same image twice, pretending that they are
+            # adjacent frames in a sequence.
             instance = (instance, instance)
         else:
             instance = self._vid_sampler.sample()
 
         return instance
-
-
-class ImagenetValManager(DataManager):
-    """handles data loading for Imagenet VID Dataset and conversion to common
-    format.
-
-    labels are loaded eagerly, images are loaded lazily.
-
-    Args:
-        data_root: dataset root directory.
-        sample_size: number of instances to sample for validation set.
-    """
-
-    def __init__(self, data_root: PathLike, sample_size: int) -> None:
-        """initialize and populate index_mappings."""
-        label_root = Path(data_root, "Annotations", "VID", "val")
-        frame_root = Path(data_root, "Data", "VID", "val")
-        pascal_translator = _PascalTranslator(data_root, "VID")
-
-        snippet_dirs = [p for p in label_root.iterdir() if p.is_dir()]
-
-        index_mappings = list()
-        for _ in range(sample_size):
-            snippet_dir = random.choice(snippet_dirs)
-
-            label_paths = sorted(list(snippet_dir.glob("*.xml")))
-
-            ind_0 = random.randrange(len(label_paths) - 2)
-
-            instance_pair = list()
-            for label_ind in [ind_0, ind_0 + 1]:
-                label_path = label_paths[label_ind]
-                frame_path = Path(
-                    frame_root, label_path.relative_to(label_root).with_suffix(".JPEG")
-                )
-
-                instance = RawImageInstance(
-                    impath=frame_path,
-                    labels=[
-                        pascal_translator(pascal_object)
-                        for pascal_object in parse_pascal_xmlfile(label_path)
-                    ],
-                )
-                instance_pair.append(instance)
-
-            index_mappings.append(tuple(instance_pair))
-
-        self._index_mappings = tuple(index_mappings)
-
-    def __getitem__(self, i: int) -> Tuple[ImageInstance, ImageInstance]:
-        """get impath and labels for instance specified by i, then return
-        loaded image and labels.
-
-        Args:
-            i: index of requested instance.
-
-        Returns:
-            frame_instances: human-readable sequence of frame instances.
-        """
-        frame_instances = tuple(
-            [
-                ImageInstance(
-                    im=Image.open(raw_instance.impath),  # load image
-                    labels=raw_instance.object_labels,
-                )
-                for raw_instance in self._index_mappings[i]
-            ]
-        )
-
-        return frame_instances
-
-    def __len__(self) -> int:
-        return len(self._index_mappings)
 
 
 class _PascalTranslator(object):
@@ -309,3 +311,51 @@ class _PascalTranslator(object):
             box=pascal_object.bbox,
             track_id=pascal_object.track_id,
         )
+
+
+def find_vid_trn_snippet_ids(data_root: Path) -> Tuple[str, ...]:
+    """find snippet identifiers for VID training set. identifiers take the form of
+    $BATCH_NAME/$SNIPPET_NAME."""
+    imagesets_dir = Path(data_root, "ImageSets", "VID")
+    frame_root = Path(data_root, "Data", "VID", "train")
+    label_root = Path(data_root, "Annotations", "VID", "train")
+
+    trn_snippet_ids = list()
+    for trn_list_path in imagesets_dir.glob("train_[0-9]?.txt"):
+        with open(trn_list_path) as trn_list_file:
+            for line in trn_list_file:
+                snippet_id, _ = line.split()
+
+                for sub_dir in [frame_root, label_root]:
+                    snippet_sub_dir = Path(sub_dir, snippet_id)
+                    if not snippet_sub_dir.is_dir():
+                        raise FileNotFoundError(f"couldn't find {snippet_sub_dir}")
+
+                trn_snippet_ids.append(snippet_id)
+
+    trn_snippet_ids = tuple(trn_snippet_ids)
+
+    return trn_snippet_ids
+
+
+def setup_vid_datasets(
+    data_root: Path,
+    vid_partition_sizes: Tuple[int, int],
+    trn_size: int,
+    val_size: int,
+    p_det: float,
+    a: float,
+) -> Tuple[DataManager, DataManager]:
+    """put together datasets for training on VID+DET."""
+    vid_snippet_ids = find_vid_trn_snippet_ids(data_root)
+    trn_snippets, val_snippets = partition_items(vid_snippet_ids, vid_partition_sizes)
+
+    trn_vid_sampler = VIDSampler(data_root, trn_snippets, a)
+    val_manager = VIDManager(data_root, val_snippets, val_size)
+
+    det_sampler = DETSampler(data_root)
+
+    trn_sampler = ImagenetSampler(trn_vid_sampler, det_sampler, p_det)
+    trn_manager = DataManagerWrapper(trn_sampler, trn_size)
+
+    return trn_manager, val_manager
