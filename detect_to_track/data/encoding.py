@@ -4,7 +4,7 @@ import abc
 from typing import Tuple, Sequence
 
 import numpy as np
-from ml_utils.bbox_utils import ijhw_to_ijij, compute_ious
+from ml_utils.boundingboxes import ijhw_to_ijij, compute_ious
 
 from .types import ObjectLabel
 
