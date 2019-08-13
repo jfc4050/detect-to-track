@@ -92,9 +92,9 @@ class DetectTrackTrainer:
         )  # filters rois before rcnn when training
 
         ### loss
-        self._rpn_loss_func = RPNLoss(alpha, gamma)
-        self._rcnn_loss_func = RCNNLoss(alpha, gamma)
-        self._track_loss_func = TrackLoss()
+        self._rpn_loss_func = RPNLoss(alpha, gamma).cuda()
+        self._rcnn_loss_func = RCNNLoss(alpha, gamma).cuda()
+        self._track_loss_func = TrackLoss().cuda()
         self._loss_coefs = torch.as_tensor(loss_coefs).cuda()
 
         ### optimizers
@@ -127,8 +127,7 @@ class DetectTrackTrainer:
         ### extract feature maps.
         x0 = self._im_to_x(inst_0.im)  # (3, H, W)
         x1 = self._im_to_x(inst_1.im)  # (3, H, W)
-        x = torch.stack([x0, x1])  # (2, 3, H, W)
-        x = x.cuda()
+        x = torch.stack([x0, x1]).cuda()  # (2, 3, H, W)
         fmaps = self.model.backbone(x)  # pyramid of feature maps 3*(2, ...)
 
         ### compute losses for RPN
@@ -138,14 +137,14 @@ class DetectTrackTrainer:
         lw0_rpn, c0_star_rpn, b0_star_rpn = self._anchor_encoder(inst_0.labels)
         lw1_rpn, c1_star_rpn, b1_star_rpn = self._anchor_encoder(inst_1.labels)
         lw_rpn = np.stack([lw0_rpn, lw1_rpn])  # (2, |A|)
-        c_star_rpn = np.stack([c0_star_rpn, c1_star_rpn])  # (2, |A|)
+        c_star_rpn = np.stack([c0_star_rpn, c1_star_rpn]) != 0  # (2, |A|)
         b_star_rpn = np.stack([b0_star_rpn, b1_star_rpn])  # (2, |A|, 4)
         # RPN predictions.
         o_hat_rpn, b_hat_rpn, fm_reg = self.model.rpn(fmaps["c4"])
         # RPN loss.
-        lw_rpn = torch.as_tensor(lw_rpn).cuda()
-        c_star_rpn = torch.as_tensor(c_star_rpn).cuda()
-        b_star_rpn = torch.as_tensor(b_star_rpn).cuda()
+        lw_rpn = torch.as_tensor(lw_rpn, dtype=torch.float32).cuda()
+        c_star_rpn = torch.as_tensor(c_star_rpn, dtype=torch.int64).cuda()
+        b_star_rpn = torch.as_tensor(b_star_rpn, dtype=torch.float32).cuda()
         o_loss_rpn, b_loss_rpn = self._rpn_loss_func(
             lw_rpn, o_hat_rpn, c_star_rpn, b_hat_rpn, b_star_rpn
         )
@@ -158,45 +157,49 @@ class DetectTrackTrainer:
             tensor_to_ndarray(confs)
             for confs in o_hat_rpn[:, :, 1]  # confidence for "object" class
         ]  # 2 * (|A|,)
-        regions_0, regions_1 = [
+        rboxes_0, rboxes_1 = [
             frcnn_box_decode(
                 self._anchor_encoder.anchors,  # (|A|, 4)
                 tensor_to_ndarray(offsets),  # (|A|, 4)
             )  # (|A|, 4)
             for offsets in b_hat_rpn  # (2, |A|, 4)
         ]  # 2*(|A|, 4)
-        regions_0 = self._region_filter(o0_hat_rpn, regions_0)  # (|R0|, 4)
-        regions_1 = self._region_filter(o1_hat_rpn, regions_1)  # (|R1|, 4)
+        _, rboxes_0 = self._region_filter(o0_hat_rpn, rboxes_0)  # (|R0|, 4)
+        _, rboxes_1 = self._region_filter(o1_hat_rpn, rboxes_1)  # (|R1|, 4)
         # would prefer to have encoding details abstracted away by a dataset
         # object, but the 2-stage structure complicates this. the main issue
         # is that the (unencoded) ground truth labels are required again once
         # we have obtained the region proposals in order to encode the labels
         # for the rcnn.
         c0_star_rcnn, b0_star_rcnn = self._region_encoder(
-            regions_0, inst_0.labels
+            rboxes_0, inst_0.labels
         )  # (|R0|,), (|R0|, 4)
         c1_star_rcnn, b1_star_rcnn = self._region_encoder(
-            regions_1, inst_1.labels
+            rboxes_1, inst_1.labels
         )  # (|R1|,), (|R1|, 4)
         c_star_rcnn = np.concatenate([c0_star_rcnn, c1_star_rcnn])  # (|R0 u R1|,)
         b_star_rcnn = np.concatenate([b0_star_rcnn, b1_star_rcnn])  # (|R0 u R1|, 4)
         # RCNN predictions.
         c5_0, c5_1 = fmaps["c5"]  # 2*(C', H', W')
-        regions_0 = torch.as_tensor(regions_0).cuda()  # (|R0|, 4)
-        regions_1 = torch.as_tensor(regions_1).cuda()  # (|R1|, 4)
-        c0_hat_rcnn, b0_hat_rcnn = self.model.rcnn(c5_0, regions_0)  # (|R0|, ...)
-        c1_hat_rcnn, b1_hat_rcnn = self.model.rcnn(c5_1, regions_1)  # (|R1|, ...)
+        rboxes_0 = torch.as_tensor(rboxes_0, dtype=torch.float32).cuda()  # (|R0|, 4)
+        rboxes_1 = torch.as_tensor(rboxes_1, dtype=torch.float32).cuda()  # (|R1|, 4)
+        c0_hat_rcnn, b0_hat_rcnn = self.model.rcnn(c5_0, rboxes_0)  # (|R0|, ...)
+        c1_hat_rcnn, b1_hat_rcnn = self.model.rcnn(c5_1, rboxes_1)  # (|R1|, ...)
         c_hat_rcnn = torch.cat([c0_hat_rcnn, c1_hat_rcnn])  # (|R0 u R1|, n_classes)
         b_hat_rcnn = torch.cat([b0_hat_rcnn, b1_hat_rcnn])  # (|R0 u R1|, 4)
         # RCNN loss.
-        c_star_rcnn = torch.as_tensor(c_star_rcnn).cuda()  # (|R0 u R1|,)
-        b_star_rcnn = torch.as_tensor(b_star_rcnn).cuda()  # (|R0 u R1|, 4)
+        c_star_rcnn = torch.as_tensor(
+            c_star_rcnn, dtype=torch.int64
+        ).cuda()  # (|R0 u R1|,)
+        b_star_rcnn = torch.as_tensor(
+            b_star_rcnn, dtype=torch.float32
+        ).cuda()  # (|R0 u R1|, 4)
         c_loss_rcnn, b_loss_rcnn = self._rcnn_loss_func(
             c_hat_rcnn, c_star_rcnn, b_hat_rcnn, b_star_rcnn
         )
 
         ### compute losses for correlation trackers
-        ###   - inputs are feature maps from each time step
+        ###   - inputs are backbone and RPN feature maps from each time step
         ###   - supervision from ground-truth labels from each time step
         # CT label encoding.
         track_rois, t_star = track_encode(
@@ -210,12 +213,14 @@ class DetectTrackTrainer:
         fm_pyr0 = OrderedDict(c3=c3_0, c4=c4_0, c5=c5_0)
         fm_pyr1 = OrderedDict(c3=c3_1, c4=c4_1, c5=c5_1)
         fm_reg0, fm_reg1 = fm_reg  # 2 * (Cr, Hr, Wr) RPN feature maps
-        track_rois = torch.as_tensor(track_rois).cuda()  # (|R0 n R1|, 4)
+        track_rois = torch.as_tensor(
+            track_rois, dtype=torch.float32
+        ).cuda()  # (|R0 n R1|, 4)
         t_hat = self.model.c_tracker(
             fm_pyr0, fm_pyr1, fm_reg0, fm_reg1, track_rois
         )  # (|R0 n R1|, 4)
         # CT loss.
-        t_star = torch.as_tensor(t_star).cuda()
+        t_star = torch.as_tensor(t_star, dtype=torch.float32).cuda()
         t_loss = self._track_loss_func(t_hat, t_star)
 
         dt_loss = DTLoss(

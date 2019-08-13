@@ -123,7 +123,7 @@ class RegionEncoder(FRCNNLabelEncoder):
         """
         ### unzip labels
         classes = np.array([label.class_id for label in labels])
-        boxes = np.array([label.bbox for label in labels])
+        boxes = np.array([label.box for label in labels])
 
         ### assign ground-truth boxes regionwise
         ious = compute_ious(regions, boxes)  # (|A|, |B|)

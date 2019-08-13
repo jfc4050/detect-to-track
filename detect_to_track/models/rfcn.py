@@ -73,6 +73,7 @@ class RFCN(nn.Module):
             c_hat: (|R|, n_classes) region classification scores.
             b_hat: (|R|, 4) object bounding box offsets from regions.
         """
+        x = x[None, :, :, :]
         x = self.relu(self.channel_reduce(x)).squeeze(0)  # (512, H, W)
 
         c_hat = self.cls_head(x, regions)  # (|R|, n_classes)

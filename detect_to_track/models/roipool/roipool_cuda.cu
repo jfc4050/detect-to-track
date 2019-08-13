@@ -29,17 +29,17 @@ __global__ void ROIPoolKernelForward(
         const int j(ind % rHW);
 
         // get coordinates of roi r (ijhw, fractional)
-        const scalar_t* const roi_start(rois + r*4);
+        const scalar_t* const roi_start(rois + r * 4);
         const scalar_t rI(roi_start[0]);
         const scalar_t rJ(roi_start[1]);
         const scalar_t rH(roi_start[2]);
         const scalar_t rW(roi_start[3]);
-        
+
         // 1. get coordinates of bin b (ijhw, fractional)
         const scalar_t bH(rH / rHW);
         const scalar_t bW(rW / rHW);
-        const scalar_t bI(clamp(rI - rH/2) + (static_cast<scalar_t>(i) + 0.5) * bH);
-        const scalar_t bJ(clamp(rJ - rW/2) + (static_cast<scalar_t>(j) + 0.5) * bW);
+        const scalar_t bI(clamp(rI - rH / 2) + (static_cast<scalar_t>(i) + 0.5) * bH);
+        const scalar_t bJ(clamp(rJ - rW / 2) + (static_cast<scalar_t>(j) + 0.5) * bW);
         // 2. convert coordinates of b from ijhw to ijij
         // 3. clamp to [0, 1]
         // 4. convert from fractional coordinates to pixel indices
@@ -52,7 +52,7 @@ __global__ void ROIPoolKernelForward(
 
         // iterate over all pixels in bin b, only looking at a single
         // feature map channel
-        const int channelOffset(c * iW * iH);
+        const int channelOffset(c * iH * iW);
         for (int pI = BI0; pI < BI1; ++pI) {
             for (int pJ = BJ0; pJ < BJ1; ++pJ) {
                 out[ind] += FM[channelOffset + pI * iW + pJ];
@@ -96,7 +96,7 @@ __global__ void ROIPoolKernelBackward(
         const scalar_t rJ(roi_start[1]);
         const scalar_t rH(roi_start[2]);
         const scalar_t rW(roi_start[3]);
-        
+
         // 1. get coordinates of bin b (ijhw, fractional)
         const scalar_t bH(rH / rHW);
         const scalar_t bW(rW / rHW);
@@ -115,7 +115,7 @@ __global__ void ROIPoolKernelBackward(
         const scalar_t gradVal(gradOut[ind]);
         // iterate over all pixels in bin b, only looking at a single
         // feature map channel
-        const int channelOffset(c * iW * iH);
+        const int channelOffset(c * iH * iW);
         for (int pI = BI0; pI < BI1; ++pI) {
             for (int pJ = BJ0; pJ < BJ1; ++pJ) {
                 const int inputOffset(channelOffset + pI * iW + pJ);
@@ -149,7 +149,7 @@ at::Tensor ROIPoolCudaForward(
                 FM.data<scalar_t>(),
                 rois.data<scalar_t>(),
                 out.data<scalar_t>(),
-                iR, iC, iW, iW,
+                iR, iC, iH, iW,
                 rHW
             );
         })

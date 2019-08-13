@@ -50,4 +50,4 @@ trainer = DetectTrackTrainer(
     cfg.PATIENCE,
 )
 
-trainer.train()
+trainer.run()

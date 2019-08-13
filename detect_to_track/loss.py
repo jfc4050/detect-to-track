@@ -37,11 +37,9 @@ class FocalLoss(nn.BCELoss):
         c_star_oh = torch.zeros_like(c_hat)  # (|B|, |A|, C)
         c_star_oh.scatter_(-1, c_star.unsqueeze(-1), 1)  # one-hot representation
 
-        # pt = 1-c_hat if c_star==1, c_hat otherwise
-        pt = torch.where(c_star_oh, 1 - c_hat, c_hat)  # (|B|, |A|, C)
-        # at = 1-alpha if c_star==1, alpha otherwise
-        at = torch.where(c_star_oh, 1 - self.alpha, self.alpha)  # (|B|, |A|, C)
-        bce = super().forward(c_hat, c_star)  # (|B|, |A|, C)
+        pt = torch.where(c_star_oh == 1, 1 - c_hat, c_hat)  # (|B|, |A|, C)
+        at = torch.where(c_star_oh == 1, 1 - self.alpha, self.alpha)  # (|B|, |A|, C)
+        bce = super().forward(c_hat, c_star_oh)  # (|B|, |A|, C)
         fl = pt.pow(self.gamma) * at * bce  # (|B|, |A|, C)
 
         fl = fl.mean(-1)  # (|B|, |A|) mean loss across all classes
