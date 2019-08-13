@@ -13,15 +13,17 @@ from detect_to_track.trainer import DetectTrackTrainer
 parser = ArgumentParser(__doc__)
 parser.add_argument("-c", "--cfg", default="cfg/default.yaml", help="path to cfg file")
 args = parser.parse_args()
-cfg = SimpleNamespace(**yaml.load(open(args.cfg)))
+cfg = SimpleNamespace(**yaml.load(open(args.cfg), Loader=yaml.FullLoader))
 
-### model setup
-model = DetectTrackModule()
-model.build_backbone(cfg.BACKBONE_ARCH, cfg.FIRST_TRAINABLE_STAGE)
-model.build_rpn(len(cfg.ANCHOR_AREAS) * len(cfg.ANCHOR_ASPECT_RATIOS))
-model.build_rcnn(cfg.N_CLASSES, cfg.K)
-model.build_c_tracker(cfg.D_MAX, cfg.K)
-model.backbone.freeze()  # needs to be done after state dict loaded
+model = DetectTrackModule(
+    cfg.BACKBONE_ARCH,
+    cfg.FIRST_TRAINABLE_STAGE,
+    len(cfg.ANCHOR_AREAS) * len(cfg.ANCHOR_ASPECT_RATIOS),
+    cfg.N_CLASSES,
+    cfg.K,
+    cfg.D_MAX,
+    cfg.K,
+)
 
 trn_manager, val_manager = setup_vid_datasets(
     cfg.DATA_ROOT, cfg.VID_PARTITION_SIZES, cfg.TRN_SIZE, cfg.VAL_SIZE, cfg.P_DET, cfg.A
