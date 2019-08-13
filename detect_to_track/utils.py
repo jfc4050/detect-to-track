@@ -13,18 +13,18 @@ class DTLoss(object):
 
     def __init__(
         self,
-        o_loss: Optional[Tensor] = None,
-        b_loss_rpn: Optional[Tensor] = None,
-        c_loss: Optional[Tensor] = None,
-        b_loss_rcnn: Optional[Tensor] = None,
-        t_loss: Optional[Tensor] = None,
+        o_loss: Tensor = None,
+        b_loss_rpn: Tensor = None,
+        c_loss: Tensor = None,
+        b_loss_rcnn: Tensor = None,
+        t_loss: Tensor = None,
     ) -> None:
         # cloning in case inputs are leaves. otherwise no effect.
-        self.o_loss = o_loss.clone() or 0
-        self.b_loss_rpn = b_loss_rpn.clone() or 0
-        self.c_loss = c_loss.clone() or 0
-        self.b_loss_rcnn = b_loss_rcnn.clone() or 0
-        self.t_loss = t_loss.clone() or 0
+        self.o_loss = 0 if o_loss is None else o_loss.clone()
+        self.b_loss_rpn = 0 if b_loss_rpn is None else b_loss_rpn.clone()
+        self.c_loss = 0 if c_loss is None else c_loss.clone()
+        self.b_loss_rcnn = 0 if b_loss_rcnn is None else b_loss_rcnn.clone()
+        self.t_loss = 0 if t_loss is None else t_loss.clone()
 
         if any(
             x is not None for x in [o_loss, b_loss_rpn, c_loss, b_loss_rcnn, t_loss]
