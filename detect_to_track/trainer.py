@@ -7,7 +7,7 @@ from typing import Tuple, Sequence
 
 import torch
 from torch.nn.parallel import DataParallel
-from torch.utils.data import BatchSampler, SequentialSampler, RandomSampler
+from torch.utils.data import BatchSampler, RandomSampler
 from torch.optim import SGD
 import numpy as np
 from ml_utils.prediction_filtering import (
@@ -22,6 +22,21 @@ from .data.encoding import AnchorEncoder, RegionEncoder, frcnn_box_decode, track
 from .loss import RPNLoss, RCNNLoss, TrackLoss
 from .models import DetectTrackModule
 from .utils import DTLoss, build_anchors, tensor_to_ndarray, make_input_transform
+
+
+class BatchLoader:
+    """was easier to just write this class instead of adapting a torch DataLoader."""
+
+    def __init__(self, data_manager: DataManager, batch_size: int) -> None:
+        self.data_manager = data_manager
+        self.idx_sampler = BatchSampler(
+            RandomSampler(data_manager), batch_size, drop_last=True
+        )
+
+    def __iter__(self) -> object:
+        for indices in self.idx_sampler:
+            batch = [self.data_manager[idx] for idx in indices]
+            yield batch
 
 
 class DetectTrackTrainer:
@@ -61,10 +76,8 @@ class DetectTrackTrainer:
         self.model = model.cuda()
 
         ### datasets
-        self.trn_loader = BatchSampler(
-            SequentialSampler(trn_manager), batch_size, False
-        )
-        self.val_loader = BatchSampler(RandomSampler(val_manager), batch_size, False)
+        self.trn_loader = BatchLoader(trn_manager, batch_size)
+        self.val_loader = BatchLoader(val_manager, batch_size)
         self.batch_size = batch_size
 
         ### ground-truth label encoding
