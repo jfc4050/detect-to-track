@@ -66,7 +66,7 @@ class AnchorEncoder(FRCNNLabelEncoder):
         """
         ### unzip labels
         classes = np.array([label.class_id for label in labels])  # (|O|,)
-        boxes = np.array([label.box for label in labels])  # (|O|, 4)
+        boxes = np.array([label.box for label in labels]).reshape(-1, 4)  # (|O|, 4)
 
         ### assign ground-truth boxes anchorwise
         ious = compute_ious(self.anchors, boxes)  # (|A|, |B|)
@@ -123,7 +123,7 @@ class RegionEncoder(FRCNNLabelEncoder):
         """
         ### unzip labels
         classes = np.array([label.class_id for label in labels])
-        boxes = np.array([label.box for label in labels])
+        boxes = np.array([label.box for label in labels]).reshape(-1, 4)
 
         ### assign ground-truth boxes regionwise
         ious = compute_ious(regions, boxes)  # (|A|, |B|)
