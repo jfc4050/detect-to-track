@@ -6,7 +6,6 @@ from collections import OrderedDict
 from typing import Tuple, Sequence
 
 import torch
-from torch.nn.parallel import DataParallel
 from torch.utils.data import BatchSampler, RandomSampler
 from torch.optim import SGD
 import numpy as np
@@ -71,8 +70,6 @@ class DetectTrackTrainer:
     ) -> None:
         ### models
         self._im_to_x = make_input_transform(input_dims)
-        if torch.cuda.device_count() > 1:
-            model = DataParallel(model)
         self.model = model.cuda()
 
         ### datasets
