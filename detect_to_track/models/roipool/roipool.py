@@ -1,6 +1,7 @@
 """RoI Pooling function and module."""
 
 from pathlib import Path
+from typing import Tuple
 
 from torch import Tensor
 from torch.nn import Module
@@ -22,7 +23,7 @@ class ROIPoolFunction(Function):
     """RoI Pooling function."""
 
     @staticmethod
-    def forward(ctx, FM: Tensor, rois: Tensor, r_hw: int) -> Tensor:
+    def forward(ctx: object, FM: Tensor, rois: Tensor, r_hw: int) -> Tensor:
         """RoI Pooling from FM, directed by rois.
 
         Args:
@@ -40,7 +41,7 @@ class ROIPoolFunction(Function):
         return out
 
     @staticmethod
-    def backward(ctx, grad_out):
+    def backward(ctx: object, grad_out: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
         """given loss derivatives wrt output, compute loss derivatives wrt input.
 
         Args:
@@ -49,6 +50,7 @@ class ROIPoolFunction(Function):
         Returns:
             grad_fm: (C, H, W) loss derivatives wrt input.
         """
+        grad_out = grad_out.contiguous()
         rois, = ctx.saved_tensors
         grad_fm = _ext.roipool_backward(grad_out, rois, ctx.i_h, ctx.i_w)
 

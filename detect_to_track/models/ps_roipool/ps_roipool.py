@@ -1,6 +1,7 @@
 """position-sensitive ROI pooling function and module."""
 
 from pathlib import Path
+from typing import Tuple
 
 from torch import Tensor
 from torch.nn import Module
@@ -52,7 +53,9 @@ class PSROIPoolFunction(Function):
         return pooled
 
     @staticmethod
-    def backward(ctx, grad_out: Tensor) -> Tensor:
+    def backward(
+        ctx: object, grad_out: Tensor
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
         """
         Args:
             grad_out: (|R|, n_targets, r_hw, r_hw); loss derivatives wrt
@@ -62,6 +65,7 @@ class PSROIPoolFunction(Function):
             grad_FM: (n_targets * r_hw^2, H, W); loss derivatives wrt
                 pooling input.
         """
+        grad_out = grad_out.contiguous()
         rois, = ctx.saved_tensors
         grad_FM = _ext.ps_roipool_backward(grad_out, rois, ctx.fm_h, ctx.fm_w)
 
@@ -77,7 +81,7 @@ class PSROIPool(Module):
         r_hw: height and with of pooled features.
     """
 
-    def __init__(self, n_targets: int, r_hw: int):
+    def __init__(self, n_targets: int, r_hw: int) -> None:
         super().__init__()
         self.n_targets = n_targets
         self.r_hw = r_hw

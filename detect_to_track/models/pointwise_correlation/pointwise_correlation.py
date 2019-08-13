@@ -48,7 +48,7 @@ class PointwiseCorrelationFunction(Function):
         return out
 
     @staticmethod
-    def backward(ctx, grad_out: Tensor) -> Tuple[Tensor, Tensor]:
+    def backward(ctx, grad_out: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
         """given derivatives wrt out, compute derivatives wrt FM0 and FM1.
 
         Args:
@@ -59,6 +59,7 @@ class PointwiseCorrelationFunction(Function):
             grad_FM0: (|B|, C, H, W) gradients wrt FM0.
             grad_FM1: (|B|, C, H, W) gradients wrt FM1.
         """
+        grad_out = grad_out.contiguous()
         FM0, FM1 = ctx.saved_tensors
         grad_FM0, grad_FM1 = _ext.pointwise_correlation_backward(
             grad_out, FM0, FM1, ctx.d_max, ctx.stride
