@@ -154,7 +154,9 @@ class DETRawSampler:
     """randomly samples raw instances (paths to images and labels) from
     DET train+val."""
 
-    def __init__(self, data_root: Path, allowed_class_ids: Set[int]) -> None:
+    def __init__(
+        self, data_root: Path, allowed_class_ids: Set[str], allowed_class_ints: Set[int]
+    ) -> None:
         label_root = Path(data_root, "Annotations", "DET")
         frame_root = Path(data_root, "Data", "DET")
 
@@ -162,7 +164,7 @@ class DETRawSampler:
         # class. This will be useful for sampling later on.
         self._rawinstances_by_cls = defaultdict(list)
 
-        trn_files = [f"train_{cls_id}" for cls_id in allowed_class_ids]
+        trn_files = [f"train_{cls_id}" for cls_id in allowed_class_ints]
         val_files = ["val"]
         for mode, files in zip(["train", "val"], [trn_files, val_files]):
             for f in files:
@@ -190,8 +192,8 @@ class DETRawSampler:
         available classes first, then samples instances that contain that
         class. This solves the same problem without throwing data away.
         """
-        raw_instances = random.choice(self._rawinstances_by_cls.values())
-        raw_instance = random.choice(raw_instances)
+        sampled_cls_id = random.choice(list(self._rawinstances_by_cls.keys()))
+        raw_instance = random.choice(self._rawinstances_by_cls[sampled_cls_id])
 
         return raw_instance
 
@@ -202,14 +204,17 @@ class DETSampler(DataSampler):
 
     def __init__(self, data_root: PathLike) -> None:
         self._pascal_translator = _PascalTranslator(data_root, "VID")
-        allowed_class_ids = set(self._pascal_translator.id_to_int.values())
-        self._raw_sampler = DETRawSampler(data_root, allowed_class_ids)
+        allowed_class_ids = set(self._pascal_translator.id_to_int.keys())
+        allowed_class_ints = set(self._pascal_translator.id_to_int.values())
+        self._raw_sampler = DETRawSampler(
+            data_root, allowed_class_ids, allowed_class_ints
+        )
 
     def sample(self) -> ImageInstance:
         raw_instance = self._raw_sampler.sample()
         instance = ImageInstance(
             im=Image.open(raw_instance.impath),
-            object_labels=tuple(
+            labels=tuple(
                 self._pascal_translator(pascal_object)
                 for pascal_object in parse_pascal_xmlfile(raw_instance.labelpath)
             ),
