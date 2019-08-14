@@ -364,3 +364,11 @@ def setup_vid_datasets(
     trn_manager = DataManagerWrapper(trn_sampler, trn_size)
 
     return trn_manager, val_manager
+
+
+def make_mock_dataset(data_root: Path, n_samples: int) -> DataManager:
+    """make small subset of full dataset for quick iteration."""
+    vid_snippet_ids = find_vid_trn_snippet_ids(data_root)
+    vid_manager = VIDManager(data_root, vid_snippet_ids, n_samples)
+
+    return vid_manager
