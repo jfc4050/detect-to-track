@@ -145,7 +145,7 @@ at::Tensor ROIPoolCudaForward(
     AT_DISPATCH_FLOATING_TYPES(
         out.type(), "ROIPoolKernelForward", ([&] {
             ROIPoolKernelForward<scalar_t>
-            <<<THREADS_PER_BLOCK, numBlocks>>>(
+            <<<numBlocks, THREADS_PER_BLOCK>>>(
                 FM.data<scalar_t>(),
                 rois.data<scalar_t>(),
                 out.data<scalar_t>(),
@@ -178,7 +178,7 @@ at::Tensor ROIPoolCudaBackward(
         "ROIPoolKernelBackward",
         ([&] {
             ROIPoolKernelBackward<scalar_t>
-            <<<THREADS_PER_BLOCK, numBlocks>>>(
+            <<<numBlocks, THREADS_PER_BLOCK>>>(
                 gradOut.data<scalar_t>(),
                 rois.data<scalar_t>(),
                 gradIn.data<scalar_t>(),

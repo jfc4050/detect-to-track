@@ -187,7 +187,7 @@ at::Tensor pointwiseCorrelationCudaForward(
     const int iH(FM0.size(2));  // input+output height
     const int iW(FM0.size(3));  // input+output width
     const int cHW(2 * dMax + 1);  // output correlation map height and width
- 
+
     // CUDA kernel will assume zero-initialization
     at::Tensor out = at::zeros({iB, iH, iW, cHW, cHW}, FM0.options());
 
@@ -196,7 +196,7 @@ at::Tensor pointwiseCorrelationCudaForward(
     AT_DISPATCH_FLOATING_TYPES(
         out.type(), "pointwiseCorrelationsKernelForward", ([&] {
             pointwiseCorrelationKernelForward<scalar_t>
-            <<<THREADS_PER_BLOCK, numBlocks>>>(
+            <<<numBlocks, THREADS_PER_BLOCK>>>(
                 FM0.data<scalar_t>(),
                 FM1.data<scalar_t>(),
                 out.data<scalar_t>(),
@@ -233,7 +233,7 @@ std::tuple<at::Tensor, at::Tensor> pointwiseCorrelationCudaBackward(
     AT_DISPATCH_FLOATING_TYPES(
         gradFM0.type(), "pointwiseCorrelationsKernelBackward", ([&] {
             pointwiseCorrelationKernelBackward<scalar_t>
-            <<<THREADS_PER_BLOCK, numBlocks>>>(
+            <<<numBlocks, THREADS_PER_BLOCK>>>(
                 gradOut.data<scalar_t>(),
                 FM0.data<scalar_t>(),
                 FM1.data<scalar_t>(),

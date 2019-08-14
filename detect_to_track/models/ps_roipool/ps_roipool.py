@@ -39,7 +39,7 @@ class PSROIPoolFunction(Function):
             pooled: (|R|, n_targets, r_hw, r_hw) pooled feature map.
         """
         ctx.save_for_backward(rois)
-        ctx.fm_h, ctx.fm_w = FM.shape[-2:]
+        _, ctx.fm_h, ctx.fm_w = FM.shape
 
         expected_channels = n_targets * r_hw ** 2
         if FM.size(0) != expected_channels:

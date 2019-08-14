@@ -33,7 +33,7 @@ __global__ void psROIPoolKernelForward(
         const int j(ind % rHW);
 
         // get coordinates of roi r (ijhw, fractional)
-        const scalar_t* const roi_start(rois + r*4);
+        const scalar_t* const roi_start(rois + r * 4);
         const scalar_t rI(roi_start[0]);
         const scalar_t rJ(roi_start[1]);
         const scalar_t rH(roi_start[2]);
@@ -50,13 +50,13 @@ __global__ void psROIPoolKernelForward(
         // result is ijij feature map pixel coordinates for cell c.
         const int cI0(floor(clamp(cI - cH/2) * iH));
         const int cJ0(floor(clamp(cJ - cW/2) * iW));
-        const int cI1(ceil(clamp(cI + cH/2) * iH));
-        const int cJ1(ceil(clamp(cJ + cW/2) * iW));
+        const int cI1(ceil (clamp(cI + cH/2) * iH));
+        const int cJ1(ceil (clamp(cJ + cW/2) * iW));
 
         // this thread only considers a single feature map channel,
         // which is determined by (t, i, j).
         const int targetChannel((t + 1) * (i * rHW + j));
-        const scalar_t* const FMChannel(FM + targetChannel*iW*iH);
+        const scalar_t* const FMChannel(FM + targetChannel * iH * iW);
         // iterate over each feature map pixel in target channel of cell c
         for (int pI = cI0; pI < cI1; ++pI) {
             for (int pJ = cJ0; pJ < cJ1; ++pJ) {
@@ -154,7 +154,7 @@ at::Tensor psROIPoolCudaForward(
     AT_DISPATCH_FLOATING_TYPES(
         out.type(), "psROIPoolKernelForward", ([&] {
             psROIPoolKernelForward<scalar_t>
-            <<<THREADS_PER_BLOCK, numBlocks>>>(
+            <<<numBlocks, THREADS_PER_BLOCK>>>(
                 FM.data<scalar_t>(),
                 rois.data<scalar_t>(),
                 out.data<scalar_t>(),
@@ -164,6 +164,7 @@ at::Tensor psROIPoolCudaForward(
             );
         })
     );
+
     return out;
 }
 
@@ -186,7 +187,7 @@ at::Tensor psROIPoolCudaBackward(
     AT_DISPATCH_FLOATING_TYPES(
         gradIn.type(), "psROIPoolKernelBackward", ([&] {
             psROIPoolKernelBackward<scalar_t>
-            <<<THREADS_PER_BLOCK, numBlocks>>>(
+            <<<numBlocks, THREADS_PER_BLOCK>>>(
                 gradOut.data<scalar_t>(),
                 rois.data<scalar_t>(),
                 gradIn.data<scalar_t>(),

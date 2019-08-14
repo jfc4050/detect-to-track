@@ -7,11 +7,12 @@ from detect_to_track.models import PSROIPool
 
 @pytest.mark.parametrize("n_targets", [1, 2])
 @pytest.mark.parametrize("r_hw", [6, 7])
-@pytest.mark.parametrize("fm_hw", [10, 11])
-def test_ps_roipool_gradients(n_targets, r_hw, fm_hw):
+@pytest.mark.parametrize("fm_h", [10, 11])
+@pytest.mark.parametrize("fm_w", [10, 11])
+def test_ps_roipool_gradients(n_targets, r_hw, fm_h, fm_w):
     pr = PSROIPool(n_targets, r_hw)
     fm = (
-        torch.rand(n_targets * r_hw ** 2, fm_hw, fm_hw)
+        torch.rand(n_targets * r_hw ** 2, fm_h, fm_w)
         .double()
         .cuda()
         .requires_grad_(True)
