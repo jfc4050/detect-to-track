@@ -4,6 +4,7 @@ from argparse import ArgumentParser
 from types import SimpleNamespace
 
 import yaml
+import wandb
 
 from detect_to_track.models import DetectTrackModule
 from detect_to_track.data.imagenet import setup_vid_datasets
@@ -13,6 +14,9 @@ from detect_to_track.trainer import DetectTrackTrainer
 parser = ArgumentParser(__doc__)
 parser.add_argument("-c", "--cfg", default="cfg/default.yaml", help="path to cfg file")
 args = parser.parse_args()
+with open(args.cfg) as f:
+    cfg = yaml.load(f, Loader=yaml.FullLoader)
+wandb.init(config=cfg)
 cfg = SimpleNamespace(**yaml.load(open(args.cfg), Loader=yaml.FullLoader))
 
 model = DetectTrackModule(

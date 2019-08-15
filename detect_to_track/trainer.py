@@ -10,6 +10,7 @@ from torch.nn import SmoothL1Loss
 from torch.utils.data import BatchSampler, RandomSampler
 from torch.optim import SGD
 import numpy as np
+import wandb
 from ml_utils.prediction_filtering import (
     PredictionFilterPipeline,
     ConfidenceFilter,
@@ -272,10 +273,19 @@ class DetectTrackTrainer:
 
         return val_loss
 
+    def report(self, trn_loss: DTLoss, val_loss: DTLoss) -> None:
+        """report training progress."""
+        trn_metrics = {f"trn_{k}": float(v) for k, v in trn_loss.asdict().items()}
+        val_metrics = {f"val_{k}": float(v) for k, v in val_loss.asdict().items()}
+
+        wandb.log({**trn_metrics, **val_metrics})
+        print(" ".join([str(trn_loss), str(val_loss)]))
+
     def step(self) -> None:
         """train on subset, validate, and report."""
         trn_loss = self.train()
         val_loss = self.validate()
+        self.report(trn_loss, val_loss)
 
         scalar_val_loss = float(val_loss.to_scalar(self._loss_coefs))
         if scalar_val_loss < self.best_val_loss:
@@ -284,9 +294,6 @@ class DetectTrackTrainer:
             torch.save(self.model.state_dict(), Path(self.output_dir, "weights.pt"))
         else:
             self.iters_no_improvement += 1
-
-        ### report
-        print(" ".join([str(trn_loss), str(val_loss)]))
 
     def run(self, max_iters: int = math.inf) -> None:
         """iterate until a stopping condition is satisfied."""
