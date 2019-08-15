@@ -74,8 +74,9 @@ class DTLoss(object):
             retain_graph=retain_graph, create_graph=create_graph
         )
 
-    def __repr__(self) -> str:
-        as_dict = {
+    def asdict(self) -> dict:
+        """convert self to dict."""
+        return {
             "o": self.o_loss,
             "b_rpn": self.b_loss_rpn,
             "c": self.c_loss,
@@ -83,15 +84,9 @@ class DTLoss(object):
             "t": self.t_loss,
         }
 
-        # str(as_dict) isn't compact enough
-        as_str = " ".join(
-            [
-                f"{k}:{v / self.count:.2f}"  # normalize and round
-                for k, v in as_dict.items()
-            ]
-        )
-
-        return as_str
+    def __repr__(self) -> str:
+        """str(self.asdict()) isn't compact enough."""
+        return " ".join([f"{k}:{v / self.count:.2e}" for k, v in self.asdict().items()])
 
 
 def build_anchors(
