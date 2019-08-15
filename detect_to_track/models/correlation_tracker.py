@@ -29,9 +29,8 @@ class CorrelationTracker(nn.Module):
         self.point_corr = PointwiseCorrelation(d_max, stride)
         self.pool = ROIPool(r_hw)
 
-        self.reg_fc = nn.Linear(
-            (3 * (2 * d_max + 1) ** 2 + 2 * reg_channels) * r_hw ** 2, 4
-        )
+        self.fc_channels = (3 * pow(2 * d_max + 1, 2) + 2 * reg_channels) * pow(r_hw, 2)
+        self.reg_fc = nn.Linear(self.fc_channels, 4)
 
     def forward(
         self,
@@ -81,9 +80,7 @@ class CorrelationTracker(nn.Module):
         )  # (3*(2d+1)^2 + 2Cr, H, W)
 
         pooled_feats = self.pool(track_feats, rois)  # (|R|, C, rHW, rHW)
-        pooled_feats = pooled_feats.view(
-            pooled_feats.size(0), -1
-        )  # (|R|, roi_features)
+        pooled_feats = pooled_feats.view(pooled_feats.size(0), self.fc_channels)
 
         t_hat = self.reg_fc(pooled_feats)  # (|R|, 4)
 
