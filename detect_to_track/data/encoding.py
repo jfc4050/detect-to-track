@@ -68,6 +68,13 @@ class AnchorEncoder(FRCNNLabelEncoder):
         classes = np.array([label.class_id for label in labels])  # (|O|,)
         boxes = np.array([label.box for label in labels]).reshape(-1, 4)  # (|O|, 4)
 
+        if classes.size == 0:
+            loss_weights = np.logical_not(self._crosses_boundary)
+            c_star = np.zeros(len(self.anchors))
+            b_star = np.zeros((len(self.anchors), 4))
+
+            return loss_weights, c_star, b_star
+
         ### assign ground-truth boxes anchorwise
         ious = compute_ious(self.anchors, boxes)  # (|A|, |B|)
         anchwise_best_gt_ind = ious.argmax(1)  # (|A|,)
@@ -124,6 +131,12 @@ class RegionEncoder(FRCNNLabelEncoder):
         ### unzip labels
         classes = np.array([label.class_id for label in labels])
         boxes = np.array([label.box for label in labels]).reshape(-1, 4)
+
+        if classes.size == 0:
+            c_star = np.zeros(len(regions))
+            b_star = np.zeros((len(regions), 4))
+
+            return c_star, b_star
 
         ### assign ground-truth boxes regionwise
         ious = compute_ious(regions, boxes)  # (|A|, |B|)
@@ -224,8 +237,8 @@ def track_encode(
         boxes_0.append(labels_0[ident].box)
         boxes_1.append(labels_1[ident].box)
 
-    boxes_0 = np.array(boxes_0)  # (|R|, 4), are also the rois
-    boxes_1 = np.array(boxes_1)  # (|R|, 4)
+    boxes_0 = np.array(boxes_0).reshape(-1, 4)  # (|R|, 4), are also the rois
+    boxes_1 = np.array(boxes_1).reshape(-1, 4)  # (|R|, 4)
 
     t_star = frcnn_box_encode(boxes_0, boxes_1)
 
