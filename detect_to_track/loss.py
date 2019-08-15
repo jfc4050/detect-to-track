@@ -151,27 +151,3 @@ class RCNNLoss(nn.Module):
         b_loss = b_loss.mean()
 
         return c_loss, b_loss
-
-
-class TrackLoss(nn.Module):
-    """smooth L1 loss for track regression."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.l1_module = nn.SmoothL1Loss()
-
-    def forward(self, t_hat: Tensor, t_star: Tensor) -> Tensor:
-        """compute track regression loss.
-
-        Args:
-            t_hat: (|R|, 4) predicted track regression offsets.
-            t_star: (|R|, 4) ground-truth track regression offsets.
-
-        Returns:
-            l1: smooth l1 loss for track regression.
-        """
-        l1 = self.l1_module(t_hat, t_star)  # (|R|, 4)
-
-        l1 = l1.mean()
-
-        return l1

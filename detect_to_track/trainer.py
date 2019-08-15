@@ -6,6 +6,7 @@ from collections import OrderedDict
 from typing import Tuple, Sequence
 
 import torch
+from torch.nn import SmoothL1Loss
 from torch.utils.data import BatchSampler, RandomSampler
 from torch.optim import SGD
 import numpy as np
@@ -18,7 +19,7 @@ from ml_utils.prediction_filtering import (
 
 from .data.types import DataManager, ImageInstance
 from .data.encoding import AnchorEncoder, RegionEncoder, frcnn_box_decode, track_encode
-from .loss import RPNLoss, RCNNLoss, TrackLoss
+from .loss import RPNLoss, RCNNLoss
 from .models import DetectTrackModule
 from .utils import DTLoss, build_anchors, tensor_to_ndarray, make_input_transform
 
@@ -94,7 +95,7 @@ class DetectTrackTrainer:
         ### loss
         self._rpn_loss_func = RPNLoss(alpha, gamma).cuda()
         self._rcnn_loss_func = RCNNLoss(alpha, gamma).cuda()
-        self._track_loss_func = TrackLoss().cuda()
+        self._track_loss_func = SmoothL1Loss().cuda()
         self._loss_coefs = torch.as_tensor(loss_coefs).cuda()
 
         ### optimizers
