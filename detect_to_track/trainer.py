@@ -102,6 +102,7 @@ class DetectTrackTrainer:
 
         self.patience = patience
         self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True, parents=True)
 
         ### state
         self.n_iters = 0
