@@ -6,7 +6,7 @@ VAL_SIZE: 5000
 P_DET: 0.5  # probability of sampling from DET instead of VID
 A: 0.8
 N_CLASSES: 30
-BATCH_SIZE: 5
+BATCH_SIZE: 3
 
 # anchors
 ANCHOR_AREAS: [0.001, 0.004, 0.016, 0.064, 0.256]
@@ -21,13 +21,19 @@ TRAIN_ROI_CONF_THRESH: 0.3
 TRAIN_MAX_ROIS: 6000
 TRAIN_NMS_IOU_THRESH: 0.5
 
+# detector settings
+EVAL_ROI_CONF_THRESH: 0.3
+EVAL_MAX_ROIS: 6000
+EVAL_NMS_IOU_THRESH: 0.5
+EVAL_RCNN_CONF_THRESH: 0.3
+
 # loss
 ALPHA: 0.25  # for focal loss
 GAMMA: 2.0  # for focal loss
-COEFS: [1., 1., 1., 1., 1.]
+COEFS: [1.0, 1.0, 1.0, 1.0, 0.1]
 
 SGD_KWARGS:
-  lr: 1.e-3
+  lr: 1.e-9
   weight_decay: 1.e-4
   momentum: 0.9
 

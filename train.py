@@ -7,7 +7,7 @@ import yaml
 import wandb
 
 from detect_to_track.models import DetectTrackModule
-from detect_to_track.data.imagenet import setup_vid_datasets
+from detect_to_track.data.imagenet import make_mock_dataset
 from detect_to_track.trainer import DetectTrackTrainer
 
 
@@ -29,14 +29,15 @@ model = DetectTrackModule(
     cfg.K,
 )
 
-trn_manager, val_manager = setup_vid_datasets(
-    cfg.DATA_ROOT, cfg.VID_PARTITION_SIZES, cfg.TRN_SIZE, cfg.VAL_SIZE, cfg.P_DET, cfg.A
-)
+trn_manager = make_mock_dataset(cfg.DATA_ROOT, cfg.BATCH_SIZE)
+val_manager = trn_manager
+rep_manager = trn_manager
 
 trainer = DetectTrackTrainer(
     model,
     trn_manager,
     val_manager,
+    rep_manager,
     cfg.BATCH_SIZE,
     cfg.INPUT_SHAPE,
     cfg.FM_STRIDE,
@@ -52,6 +53,10 @@ trainer = DetectTrackTrainer(
     cfg.COEFS,
     cfg.SGD_KWARGS,
     cfg.PATIENCE,
+    cfg.EVAL_ROI_CONF_THRESH,
+    cfg.EVAL_MAX_ROIS,
+    cfg.EVAL_NMS_IOU_THRESH,
+    cfg.EVAL_RCNN_CONF_THRESH,
 )
 
 trainer.run()

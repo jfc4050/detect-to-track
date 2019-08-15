@@ -11,17 +11,20 @@ from torch.utils.data import BatchSampler, RandomSampler
 from torch.optim import SGD
 import numpy as np
 import wandb
+from PIL import Image
 from ml_utils.prediction_filtering import (
     PredictionFilterPipeline,
     ConfidenceFilter,
     MaxDetFilter,
     NMSFilter,
 )
+from ml_utils.vis_utils import draw_detections
 
 from .data.types import DataManager, ImageInstance
 from .data.encoding import AnchorEncoder, RegionEncoder, frcnn_box_decode, track_encode
 from .loss import RPNLoss, RCNNLoss
 from .models import DetectTrackModule
+from .inference import Detector
 from .utils import DTLoss, build_anchors, tensor_to_ndarray, make_input_transform
 
 
@@ -53,6 +56,7 @@ class DetectTrackTrainer:
         model: DetectTrackModule,
         trn_manager: DataManager,
         val_manager: DataManager,
+        rep_manager: DataManager,
         batch_size: int,
         input_dims: Tuple[int, int],
         fm_stride: int,
@@ -68,6 +72,10 @@ class DetectTrackTrainer:
         loss_coefs: Sequence[float],
         sgd_kwargs: dict,
         patience: int,
+        eval_roi_conf_thresh: float,
+        eval_roi_max_dets: int,
+        eval_nms_iou_thresh: float,
+        eval_rcnn_conf_thresh: float,
         output_dir: str = "output",
     ) -> None:
         ### models
@@ -77,6 +85,7 @@ class DetectTrackTrainer:
         ### datasets
         self.trn_loader = BatchLoader(trn_manager, batch_size)
         self.val_loader = BatchLoader(val_manager, batch_size)
+        self.rep_manager = rep_manager
         self.batch_size = batch_size
 
         ### ground-truth label encoding
@@ -105,6 +114,17 @@ class DetectTrackTrainer:
         self.patience = patience
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True, parents=True)
+
+        self.detector = Detector(
+            model,
+            anchors,
+            input_dims,
+            eval_roi_conf_thresh,
+            eval_roi_max_dets,
+            eval_nms_iou_thresh,
+            eval_rcnn_conf_thresh,
+        )
+        self.report_im_h = 200
 
         ### state
         self.n_iters = 0
@@ -273,12 +293,57 @@ class DetectTrackTrainer:
 
         return val_loss
 
+    def _generate_report_labels(self, confs: np.ndarray, top_n: int) -> Sequence[str]:
+        """convert confidences to readable labels, showing confidences
+        for top_n classes."""
+        top_classes = np.argsort(confs, axis=1)[:, ::-1][:, :top_n]  # (|D|, top_n)
+        top_confs = np.take_along_axis(confs, top_classes, axis=1)  # (|D|, top_n)
+
+        labels = list()
+        for det_top_classes, det_top_confs in zip(top_classes, top_confs):
+            det_label = "\n".join(
+                [
+                    f"{class_int}: {conf:.2f}"
+                    for class_int, conf in zip(det_top_classes, det_top_confs)
+                ]
+            )
+            labels.append(det_label)
+
+        return labels
+
+    def _resize_report_im(self, im: Image.Image) -> Image.Image:
+        """resize image such that it has height of `self.report_im_h`
+        without changing aspect ratio."""
+        im_w, im_h = im.size
+        resize_ratio = self.report_im_h / im_h
+        new_h, new_w = (int(resize_ratio * dim) for dim in (im_h, im_w))
+
+        resized = im.resize((new_w, new_h))
+
+        return resized
+
+    @torch.no_grad()
     def report(self, trn_loss: DTLoss, val_loss: DTLoss) -> None:
         """report training progress."""
+        TOP_N = 3
+
+        report_ims = dict()
+        for report_idx, (i0, i1) in enumerate(self.rep_manager):
+            confs0, confs1, bboxes0, bboxes1, tracks = self.detector(i0.im, i1.im)
+
+            im0 = self._resize_report_im(i0.im)
+            im1 = self._resize_report_im(i1.im)
+            draw_detections(im0, bboxes0, self._generate_report_labels(confs0, TOP_N))
+            draw_detections(im1, bboxes1, self._generate_report_labels(confs1, TOP_N))
+
+            cat_arr = np.concatenate([np.array(im0), np.array(im1)], axis=1)
+            cat_im = Image.fromarray(cat_arr)
+            report_ims[f"pair_{report_idx}"] = wandb.Image(cat_im)
+
         trn_metrics = {f"trn_{k}": float(v) for k, v in trn_loss.asdict().items()}
         val_metrics = {f"val_{k}": float(v) for k, v in val_loss.asdict().items()}
 
-        wandb.log({**trn_metrics, **val_metrics})
+        wandb.log({**trn_metrics, **val_metrics, **report_ims})
         print(" ".join([str(trn_loss), str(val_loss)]))
 
     def step(self) -> None:
