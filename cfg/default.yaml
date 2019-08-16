@@ -1,13 +1,13 @@
 # data
 DATA_ROOT: /home/justin/datasets/ILSVRC
-VID_PARTITION_SIZES: [0.8, 0.2]
-TRN_SIZE: 10000
+VID_PARTITION_SIZES: [0.8, 0.2]  # %train, %val
+TRN_SIZE: 10000  # nominal size.
 VAL_SIZE: 5000
 REP_SIZE: 15
-P_DET: 0.5  # probability of sampling from DET instead of VID
-A: 0.8
+P_DET: 0.5  # probability of sampling from DET instead of VID.
+A: 0.8  # shape parameter for discrete laplacian distribution.
 N_CLASSES: 30
-BATCH_SIZE: 3
+BATCH_SIZE: 4
 
 # anchors
 ANCHOR_AREAS: [0.001, 0.004, 0.016, 0.064, 0.256]
@@ -15,36 +15,36 @@ ANCHOR_ASPECT_RATIOS: [0.5, 1.0, 2.0]
 
 # encoding
 ENCODER_IOU_THRESH: 0.5
-ENCODER_IOU_MARGIN: 0.2
+ENCODER_IOU_MARGIN: 0.2  # for selectively masking out losses.
 
 # region filtering
 TRAIN_ROI_CONF_THRESH: 0.3
-TRAIN_MAX_ROIS: 6000
+TRAIN_MAX_ROIS: 3000
 TRAIN_NMS_IOU_THRESH: 0.5
 
 # detector settings
 EVAL_ROI_CONF_THRESH: 0.3
-EVAL_MAX_ROIS: 6000
-EVAL_NMS_IOU_THRESH: 0.5
+EVAL_MAX_ROIS: 3000
+EVAL_NMS_IOU_THRESH: 0.3
 EVAL_RCNN_CONF_THRESH: 0.3
 
 # loss
-ALPHA: 0.25  # for focal loss
-GAMMA: 2.0  # for focal loss
-COEFS: [1.0, 1.0, 1.0, 1.0, 0.1]
+ALPHA: 0.25  # for focal loss.
+GAMMA: 2.0  # for focal loss.
+COEFS: [1.0, 1.0, 1.0, 1.0, 1.0e-4]
 
 SGD_KWARGS:
-  lr: 1.e-9
+  lr: 1.e-2
   weight_decay: 1.e-4
   momentum: 0.9
 
-PATIENCE: 20  # number of iterations with no improvement before quitting
+PATIENCE: 1000  # number of iterations with no improvement before quitting.
 
 BACKBONE_ARCH: resnet50
 FIRST_TRAINABLE_STAGE: 3
 INPUT_SHAPE: [608, 1200]
 FM_STRIDE: 16
 
-D_MAX: 8  # max displacement for pointwise correlation
+D_MAX: 8  # max displacement for pointwise correlation.
 
-K: 7
+K: 7  # pooled map height and width.
