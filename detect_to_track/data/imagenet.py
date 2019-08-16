@@ -348,22 +348,24 @@ def setup_vid_datasets(
     vid_partition_sizes: Tuple[int, int],
     trn_size: int,
     val_size: int,
+    rep_size: int,
     p_det: float,
     a: float,
-) -> Tuple[DataManager, DataManager]:
+) -> Tuple[DataManager, DataManager, DataManager]:
     """put together datasets for training on VID+DET."""
     vid_snippet_ids = find_vid_trn_snippet_ids(data_root)
     trn_snippets, val_snippets = partition_items(vid_snippet_ids, vid_partition_sizes)
 
     trn_vid_sampler = VIDSampler(data_root, trn_snippets, a)
     val_manager = VIDManager(data_root, val_snippets, val_size)
+    rep_manager = VIDManager(data_root, trn_snippets, rep_size)
 
     det_sampler = DETSampler(data_root)
 
     trn_sampler = ImagenetSampler(trn_vid_sampler, det_sampler, p_det)
     trn_manager = DataManagerWrapper(trn_sampler, trn_size)
 
-    return trn_manager, val_manager
+    return trn_manager, val_manager, rep_manager
 
 
 def make_mock_dataset(data_root: Path, n_samples: int) -> DataManager:

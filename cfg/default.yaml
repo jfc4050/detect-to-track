@@ -3,6 +3,7 @@ DATA_ROOT: /home/justin/datasets/ILSVRC
 VID_PARTITION_SIZES: [0.8, 0.2]
 TRN_SIZE: 10000
 VAL_SIZE: 5000
+REP_SIZE: 15
 P_DET: 0.5  # probability of sampling from DET instead of VID
 A: 0.8
 N_CLASSES: 30
