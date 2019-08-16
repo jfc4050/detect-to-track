@@ -2,10 +2,11 @@
 
 import re
 
-from torch.nn import Module, BatchNorm2d
+from torch.nn import Module, BatchNorm2d, Sequential
 from torchvision.models import resnet
 from torchvision.models._utils import IntermediateLayerGetter
 from torchvision.ops.misc import FrozenBatchNorm2d
+from ml_utils.torch.modules import Normalizer
 
 
 def resnet_backbone(backbone_arch: str, first_trainable_stage: int) -> Module:
@@ -30,6 +31,9 @@ def resnet_backbone(backbone_arch: str, first_trainable_stage: int) -> Module:
 
     return_layers = {"layer2": "c3", "layer3": "c4", "layer4": "c5"}
 
+    normalizer = Normalizer()
     backbone = IntermediateLayerGetter(backbone, return_layers)
+
+    backbone = Sequential(normalizer, backbone)
 
     return backbone
