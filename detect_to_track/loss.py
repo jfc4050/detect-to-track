@@ -134,6 +134,9 @@ class RCNNLoss(nn.Module):
             c_loss: (scalar) classification loss.
             b_loss: (scalar) regression loss.
         """
+        if torch.numel(c_hat) == 0:
+            return torch.as_tensor(0), torch.as_tensor(0)
+
         # can't have meaningful batch dimension, because different images
         # from a batch may have different numbers of regions.
         # losses for region-based predictions from different images in batch
@@ -158,7 +161,7 @@ class TrackLoss(nn.Module):
 
     def __init__(self) -> None:
         super().__init__()
-        self.l1_module = nn.SmoothL1Loss()
+        self.l1_module = nn.SmoothL1Loss(reduction="none")
 
     def forward(self, t_hat: Tensor, t_star: Tensor) -> Tensor:
         """compute track regression loss.
@@ -170,8 +173,10 @@ class TrackLoss(nn.Module):
         Returns:
             l1: smooth l1 loss for track regression.
         """
-        l1 = self.l1_module(t_hat, t_star)  # (|R|, 4)
+        if torch.numel(t_hat) == 0:
+            return torch.as_tensor(0)
 
+        l1 = self.l1_module(t_hat, t_star)  # (|R|, 4)
         l1 = l1.mean()
 
         return l1
