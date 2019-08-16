@@ -259,7 +259,7 @@ class DetectTrackTrainer:
         self, minibatch: Sequence[Tuple[ImageInstance, ImageInstance]]
     ) -> DTLoss:
         """compute averaged loss for a single minibatch"""
-        minibatch_loss = DTLoss()
+        minibatch_loss = DTLoss(requires_grad=True)
         for instance in minibatch:
             minibatch_loss += self._forward_loss(instance)
 

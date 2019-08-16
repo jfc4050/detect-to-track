@@ -1,5 +1,6 @@
 """misc. utilities"""
 
+import re
 from typing import Union, Tuple, Optional, Sequence
 
 import numpy as np
@@ -18,27 +19,40 @@ class DTLoss(object):
         c_loss: Tensor = None,
         b_loss_rcnn: Tensor = None,
         t_loss: Tensor = None,
+        requires_grad: bool = False,
     ) -> None:
-        # cloning in case inputs are leaves. otherwise no effect.
-        self.o_loss = 0 if o_loss is None else o_loss.clone()
-        self.b_loss_rpn = 0 if b_loss_rpn is None else b_loss_rpn.clone()
-        self.c_loss = 0 if c_loss is None else c_loss.clone()
-        self.b_loss_rcnn = 0 if b_loss_rcnn is None else b_loss_rcnn.clone()
-        self.t_loss = 0 if t_loss is None else t_loss.clone()
+        # initial loss values.
+        self.o = self._process_init_tensor(o_loss)
+        self.b_rpn = self._process_init_tensor(b_loss_rpn)
+        self.c = self._process_init_tensor(c_loss)
+        self.b_rcnn = self._process_init_tensor(b_loss_rcnn)
+        self.t = self._process_init_tensor(t_loss)
 
-        if any(
-            x is not None for x in [o_loss, b_loss_rpn, c_loss, b_loss_rcnn, t_loss]
-        ):
-            self.count = 1
-        else:
-            self.count = 0
+        self.requires_grad = requires_grad
+        self.count = int(
+            any(
+                x is not None for x in [o_loss, b_loss_rpn, c_loss, b_loss_rcnn, t_loss]
+            )
+        )
+
+    @staticmethod
+    def _process_init_tensor(init_tensor: Tensor) -> Tensor:
+        """return zero tensor if init_tensor is None, otherwise clone
+        (in case inputs are leaves)."""
+        return torch.as_tensor(0.0) if init_tensor is None else init_tensor.clone()
+
+    def _process_addend(self, addend: Tensor) -> Union[float, Tensor]:
+        """convert to float if this `DTLoss` instance doesn't `require_grad`"""
+        if not self.requires_grad:
+            addend = addend.detach()
+        return addend
 
     def __iadd__(self, lhs: "DTLoss") -> None:
-        self.o_loss += lhs.o_loss
-        self.b_loss_rpn += lhs.b_loss_rpn
-        self.c_loss += lhs.c_loss
-        self.b_loss_rcnn += lhs.b_loss_rcnn
-        self.t_loss += lhs.t_loss
+        self.o += self._process_addend(lhs.o).to(self.o.device)
+        self.b_rpn += self._process_addend(lhs.b_rpn).to(self.b_rpn.device)
+        self.c += self._process_addend(lhs.c).to(self.c.device)
+        self.b_rcnn += self._process_addend(lhs.b_rcnn).to(self.b_rcnn.device)
+        self.t += self._process_addend(lhs.t).to(self.t.device)
 
         self.count += lhs.count
 
@@ -46,16 +60,13 @@ class DTLoss(object):
 
     def as_tensor(self) -> Tensor:
         """convert to tensor without breaking computation graph."""
-        return torch.stack(
-            [self.o_loss, self.b_loss_rpn, self.c_loss, self.b_loss_rcnn, self.t_loss]
-        )
+        return torch.stack([self.o, self.b_rpn, self.c, self.b_rcnn, self.t])
 
     def to_scalar(self, coefs: Optional[Tensor] = None) -> Tensor:
         """linear combination of individual losses as specified by coefs"""
-        if coefs is None:
-            coefs = torch.ones(5)
-
         loss_tensor = self.as_tensor()
+        if coefs is None:
+            coefs = torch.ones(len(loss_tensor))
         coefs = coefs.to(loss_tensor)
 
         scalar_loss = torch.dot(coefs, loss_tensor)
@@ -70,6 +81,8 @@ class DTLoss(object):
         create_graph: bool = False,
     ) -> None:
         """loss backprop. mimics tensor.backward() interface."""
+        if not self.requires_grad:
+            raise RuntimeError(f"this DTLoss instance does not require_grad.")
         self.to_scalar(grad_tensors).backward(
             retain_graph=retain_graph, create_graph=create_graph
         )
@@ -77,16 +90,25 @@ class DTLoss(object):
     def asdict(self) -> dict:
         """convert self to dict."""
         return {
-            "o": self.o_loss,
-            "b_rpn": self.b_loss_rpn,
-            "c": self.c_loss,
-            "b_rcnn": self.b_loss_rcnn,
-            "t": self.t_loss,
+            "o": self.o,
+            "a": self.b_rpn,
+            "c": self.c,
+            "r": self.b_rcnn,
+            "t": self.t,
         }
 
     def __repr__(self) -> str:
         """str(self.asdict()) isn't compact enough."""
-        return " ".join([f"{k}:{v / self.count:.2e}" for k, v in self.asdict().items()])
+        return " ".join(
+            [
+                re.sub(
+                    r"e([+-])0(\d)",
+                    lambda m: f"e{m.group(1)}{m.group(2)}",
+                    f"{k}:{v / self.count:.2e}",
+                )
+                for k, v in self.asdict().items()
+            ]
+        )
 
 
 def build_anchors(
